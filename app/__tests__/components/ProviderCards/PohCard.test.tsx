@@ -114,7 +114,7 @@ describe("when the verify button is clicked", () => {
 
       const initialVerifyButton = screen.queryByTestId("button-verify-poh");
 
-      // Click verify button on ens card
+      // Click verify button on poh card
       fireEvent.click(initialVerifyButton!);
 
       // Wait to see the verify button on the modal

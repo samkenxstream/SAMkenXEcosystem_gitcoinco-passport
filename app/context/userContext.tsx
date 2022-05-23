@@ -53,6 +53,10 @@ const startingAllProvidersState: AllProvidersState = {
     providerSpec: STAMP_PROVIDERS.Facebook,
     stamp: undefined,
   },
+  Brightid: {
+    providerSpec: STAMP_PROVIDERS.Brightid,
+    stamp: undefined,
+  },
 };
 
 export interface UserContextState {
@@ -67,6 +71,7 @@ export interface UserContextState {
   wallet: WalletState | null;
   signer: JsonRpcSigner | undefined;
   walletLabel: string | undefined;
+  userDid: string | undefined;
 }
 const startingState: UserContextState = {
   loggedIn: false,
@@ -80,6 +85,7 @@ const startingState: UserContextState = {
   wallet: null,
   signer: undefined,
   walletLabel: undefined,
+  userDid: undefined,
 };
 
 // create our app context
@@ -100,6 +106,7 @@ export const UserContextProvider = ({ children }: { children: any }) => {
   const [walletLabel, setWalletLabel] = useState<string | undefined>();
   const [address, setAddress] = useState<string>();
   const [signer, setSigner] = useState<JsonRpcSigner | undefined>();
+  const [userDid, setUserDid] = useState<string | undefined>();
 
   // Init onboard to enable hooks
   useEffect((): void => {
@@ -163,6 +170,7 @@ export const UserContextProvider = ({ children }: { children: any }) => {
         );
         setCeramicDatabase(ceramicDatabaseInstance);
         fetchPassport(ceramicDatabaseInstance);
+        setUserDid(viewerConnection.selfID.id);
         break;
       }
       case "failed": {
@@ -279,6 +287,7 @@ export const UserContextProvider = ({ children }: { children: any }) => {
       wallet,
       signer,
       walletLabel,
+      userDid,
     }),
     [loggedIn, address, passport, isLoadingPassport, signer, wallet, allProvidersState]
   );
@@ -296,6 +305,7 @@ export const UserContextProvider = ({ children }: { children: any }) => {
     wallet,
     signer,
     walletLabel,
+    userDid,
   };
 
   return <UserContext.Provider value={providerProps}>{children}</UserContext.Provider>;
