@@ -26,11 +26,13 @@ import { UserContext } from "../context/userContext";
 import { useViewerConnection } from "@self.id/framework";
 import { EthereumAuthProvider } from "@self.id/web";
 import { Banner } from "../components/Banner";
-import { getExpiredStamps } from "../utils/helpers";
 import { RefreshStampModal } from "../components/RefreshStampModal";
+import { ExpiredStampModal } from "../components/ExpiredStampModal";
+import ProcessingPopup from "../components/ProcessingPopup";
 
 export default function Dashboard() {
-  const { passport, isLoadingPassport, passportHasCacaoError } = useContext(CeramicContext);
+  const { passport, isLoadingPassport, passportHasCacaoError, cancelCeramicConnection, expiredProviders } =
+    useContext(CeramicContext);
   const { wallet, toggleConnection, handleDisconnection } = useContext(UserContext);
 
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -41,6 +43,7 @@ export default function Dashboard() {
   const { isOpen: retryModalIsOpen, onOpen: onRetryModalOpen, onClose: onRetryModalClose } = useDisclosure();
 
   const [refreshModal, setRefreshModal] = useState(false);
+  const [expiredStampModal, setExpiredStampModal] = useState(false);
 
   // Route user to home when wallet is disconnected
   useEffect(() => {
@@ -80,11 +83,9 @@ export default function Dashboard() {
               <img alt="shield-exclamation-icon" src="./assets/shield-exclamation-icon.svg" />
             </div>
             <div className="flex flex-col" data-testid="retry-modal-content">
-              <p className="text-lg font-bold">Ceramic Network Error</p>
+              <p className="text-lg font-bold">Datasource Connection Error</p>
               <p>
-                Gitcoin Passport relies on the Ceramic Network to load your stamp details. We cannot reach the Ceramic
-                Network right now. There are a number of reasons this could be happening, but there is no action you
-                need to take. Please try again.
+                We cannot connect to the datastore where your Stamp data is stored. Please try again in a few minutes.
               </p>
             </div>
           </div>
@@ -116,18 +117,25 @@ export default function Dashboard() {
       </div>
 
       {viewerConnection.status === "connecting" && (
-        <div className="top-unset absolute z-10 my-2 h-10 w-full md:top-10">
-          <div
-            className="absolute left-2 right-2 rounded bg-blue-darkblue py-3 px-8 md:right-1/2 md:left-1/3 md:w-5/12 md:py-4 xl:w-1/4"
-            data-testid="selfId-connection-alert"
-          >
-            <span className="absolute top-0 right-0 flex h-3 w-3 translate-x-1/2 -translate-y-1/2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-jade opacity-75"></span>
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-green-jade"></span>
+        <ProcessingPopup data-testid="selfId-connection-alert">Waiting for wallet signature...</ProcessingPopup>
+      )}
+
+      {isLoadingPassport === IsLoadingPassportState.Loading && (
+        <ProcessingPopup data-testid="db-stamps-alert">One moment while we load your Stamps...</ProcessingPopup>
+      )}
+
+      {isLoadingPassport === IsLoadingPassportState.LoadingFromCeramic && (
+        <ProcessingPopup data-testid="ceramic-stamps-alert">
+          <>
+            Connecting to Ceramic...
+            <span
+              className="pl-4 text-white no-underline hover:cursor-pointer hover:underline sm:pl-8 md:pl-12"
+              onClick={cancelCeramicConnection}
+            >
+              Cancel
             </span>
-            <span className="font-bold text-green-jade"> Waiting for wallet signature...</span>
-          </div>
-        </div>
+          </>
+        </ProcessingPopup>
       )}
 
       {passportHasCacaoError() && (
@@ -137,6 +145,19 @@ export default function Dashboard() {
             need to fix these errors before you continue using Passport. This might take up to 5 minutes.
             <button className="ml-2 flex underline" onClick={() => setRefreshModal(true)}>
               Reset Passport <img className="ml-1 w-6" src="./assets/arrow-right-icon.svg" alt="arrow-right"></img>
+            </button>
+          </div>
+        </Banner>
+      )}
+
+      {expiredProviders.length > 0 && (
+        <Banner>
+          <div className="flex w-full justify-center">
+            <img className="mr-2 h-6" alt="Clock Icon" src="./assets/clock-icon.svg" />
+            Some of your stamps have expired. You can remove them from your Passport.
+            <button className="ml-2 flex underline" onClick={() => setExpiredStampModal(true)}>
+              Remove Expired Stamps{" "}
+              <img className="ml-1 w-6" src="./assets/arrow-right-icon.svg" alt="arrow-right"></img>
             </button>
           </div>
         </Banner>
@@ -223,12 +244,16 @@ export default function Dashboard() {
       <CardList
         isLoading={
           isLoadingPassport == IsLoadingPassportState.Loading ||
+          isLoadingPassport == IsLoadingPassportState.LoadingFromCeramic ||
           isLoadingPassport == IsLoadingPassportState.FailedToConnect
         }
       />
       {/* This footer contains dark colored text and dark images */}
       <Footer lightMode={false} />
       {refreshModal && <RefreshStampModal isOpen={refreshModal} onClose={() => setRefreshModal(false)} />}
+      {expiredStampModal && (
+        <ExpiredStampModal isOpen={expiredStampModal} onClose={() => setExpiredStampModal(false)} />
+      )}
     </>
   );
 }

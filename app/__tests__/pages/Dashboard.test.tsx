@@ -33,6 +33,12 @@ jest.mock("@self.id/web", () => {
   };
 });
 
+jest.mock("@didtools/cacao", () => ({
+  Cacao: {
+    fromBlockBytes: jest.fn(),
+  },
+}));
+
 const mockToggleConnection = jest.fn();
 const mockHandleDisconnection = jest.fn();
 const mockSigner = mock(JsonRpcSigner) as unknown as JsonRpcSigner;
@@ -132,6 +138,44 @@ describe("when viewer connection status is connecting", () => {
 
     const waitingForSignature = screen.getByTestId("selfId-connection-alert");
     expect(waitingForSignature).toBeInTheDocument();
+  });
+});
+
+describe.only("when viewer connection status is connected", () => {
+  it("should show a loading stamps alert", () => {
+    (framework.useViewerConnection as jest.Mock).mockReturnValue([{ status: "connected" }]);
+    renderWithContext(
+      mockUserContext,
+      {
+        ...mockCeramicContext,
+        passport: undefined,
+        isLoadingPassport: IsLoadingPassportState.Loading,
+      },
+      <Router>
+        <Dashboard />
+      </Router>
+    );
+
+    const databaseLoadingAlert = screen.getByTestId("db-stamps-alert");
+    expect(databaseLoadingAlert).toBeInTheDocument();
+  });
+
+  it("should show a connecting to ceramic alert", () => {
+    (framework.useViewerConnection as jest.Mock).mockReturnValue([{ status: "connected" }]);
+    renderWithContext(
+      mockUserContext,
+      {
+        ...mockCeramicContext,
+        passport: undefined,
+        isLoadingPassport: IsLoadingPassportState.LoadingFromCeramic,
+      },
+      <Router>
+        <Dashboard />
+      </Router>
+    );
+
+    const ceramicLoadingAlert = screen.getByTestId("ceramic-stamps-alert");
+    expect(ceramicLoadingAlert).toBeInTheDocument();
   });
 });
 
