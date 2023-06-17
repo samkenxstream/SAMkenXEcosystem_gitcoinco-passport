@@ -6,14 +6,18 @@ import {
   PLATFORM_ID,
   PROVIDER_ID,
   Stamp,
+  StampPatch,
 } from "@gitcoin/passport-types";
-import { ProviderSpec, STAMP_PROVIDERS } from "../config/providers";
+import { ProviderSpec } from "../config/providers";
 import { CeramicDatabase, PassportDatabase } from "@gitcoin/passport-database-client";
 import { useViewerConnection } from "@self.id/framework";
 import { datadogLogs } from "@datadog/browser-logs";
 import { datadogRum } from "@datadog/browser-rum";
 import { UserContext } from "./userContext";
-import {
+import { ScorerContext } from "./scorerContext";
+
+import { PlatformGroupSpec, platforms as stampPlatforms } from "@gitcoin/passport-platforms";
+const {
   Twitter,
   Ens,
   Lens,
@@ -21,6 +25,7 @@ import {
   Gitcoin,
   Facebook,
   Poh,
+  PHI,
   GitPOAP,
   NFT,
   GnosisSafe,
@@ -34,11 +39,17 @@ import {
   GtcStaking,
   Google,
   Brightid,
-} from "@gitcoin/passport-platforms";
+  Coinbase,
+  GuildXYZ,
+  Hypercerts,
+  Holonym,
+} = stampPlatforms;
+
 import { PlatformProps } from "../components/GenericPlatform";
 
 // -- Trusted IAM servers DID
 const IAM_ISSUER_DID = process.env.NEXT_PUBLIC_PASSPORT_IAM_ISSUER_DID || "";
+const CACAO_ERROR_STATUSES: PassportLoadStatus[] = ["PassportCacaoError", "StampCacaoError"];
 
 export interface CeramicContextState {
   passport: Passport | undefined | false;
@@ -47,39 +58,40 @@ export interface CeramicContextState {
   allPlatforms: Map<PLATFORM_ID, PlatformProps>;
   handleCreatePassport: () => Promise<void>;
   handleAddStamps: (stamps: Stamp[]) => Promise<void>;
+  handlePatchStamps: (stamps: StampPatch[]) => Promise<void>;
   handleDeleteStamps: (providerIds: PROVIDER_ID[]) => Promise<void>;
   handleCheckRefreshPassport: () => Promise<boolean>;
   cancelCeramicConnection: () => void;
   userDid: string | undefined;
   expiredProviders: PROVIDER_ID[];
-  passportHasCacaoError: () => boolean;
+  passportHasCacaoError: boolean;
   passportLoadResponse?: PassportLoadResponse;
 }
 
 export const platforms = new Map<PLATFORM_ID, PlatformProps>();
 platforms.set("Twitter", {
   platform: new Twitter.TwitterPlatform(),
-  platFormGroupSpec: Twitter.TwitterProviderConfig,
+  platFormGroupSpec: Twitter.ProviderConfig,
 });
 
 platforms.set("GitPOAP", {
   platform: new GitPOAP.GitPOAPPlatform(),
-  platFormGroupSpec: GitPOAP.GitPOAPProviderConfig,
+  platFormGroupSpec: GitPOAP.ProviderConfig,
 });
 
 platforms.set("Ens", {
   platform: new Ens.EnsPlatform(),
-  platFormGroupSpec: Ens.EnsProviderConfig,
+  platFormGroupSpec: Ens.ProviderConfig,
 });
 
 platforms.set("NFT", {
   platform: new NFT.NFTPlatform(),
-  platFormGroupSpec: NFT.NFTProviderConfig,
+  platFormGroupSpec: NFT.ProviderConfig,
 });
 
 platforms.set("Facebook", {
-  platFormGroupSpec: Facebook.FacebookProviderConfig,
   platform: new Facebook.FacebookPlatform(),
+  platFormGroupSpec: Facebook.ProviderConfig,
 });
 
 platforms.set("Github", {
@@ -87,7 +99,7 @@ platforms.set("Github", {
     clientId: process.env.NEXT_PUBLIC_PASSPORT_GITHUB_CLIENT_ID,
     redirectUri: process.env.NEXT_PUBLIC_PASSPORT_GITHUB_CALLBACK,
   }),
-  platFormGroupSpec: Github.GithubProviderConfig,
+  platFormGroupSpec: Github.ProviderConfig,
 });
 
 platforms.set("Gitcoin", {
@@ -95,47 +107,47 @@ platforms.set("Gitcoin", {
     clientId: process.env.NEXT_PUBLIC_PASSPORT_GITHUB_CLIENT_ID,
     redirectUri: process.env.NEXT_PUBLIC_PASSPORT_GITHUB_CALLBACK,
   }),
-  platFormGroupSpec: Gitcoin.GitcoinProviderConfig,
+  platFormGroupSpec: Gitcoin.ProviderConfig,
 });
 
 platforms.set("Snapshot", {
   platform: new Snapshot.SnapshotPlatform(),
-  platFormGroupSpec: Snapshot.SnapshotProviderConfig,
+  platFormGroupSpec: Snapshot.ProviderConfig,
 });
 
 platforms.set("Poh", {
   platform: new Poh.PohPlatform(),
-  platFormGroupSpec: Poh.PohProviderConfig,
+  platFormGroupSpec: Poh.ProviderConfig,
 });
 
 platforms.set("ZkSync", {
   platform: new ZkSync.ZkSyncPlatform(),
-  platFormGroupSpec: ZkSync.ZkSyncProviderConfig,
+  platFormGroupSpec: ZkSync.ProviderConfig,
 });
 
 platforms.set("Lens", {
   platform: new Lens.LensPlatform(),
-  platFormGroupSpec: Lens.LensProviderConfig,
+  platFormGroupSpec: Lens.ProviderConfig,
 });
 
 platforms.set("GnosisSafe", {
   platform: new GnosisSafe.GnosisSafePlatform(),
-  platFormGroupSpec: GnosisSafe.GnosisSafeProviderConfig,
+  platFormGroupSpec: GnosisSafe.ProviderConfig,
 });
 
 platforms.set("ETH", {
   platform: new ETH.ETHPlatform(),
-  platFormGroupSpec: ETH.ETHProviderConfig,
+  platFormGroupSpec: ETH.ProviderConfig,
 });
 
 platforms.set("POAP", {
   platform: new POAP.POAPPlatform(),
-  platFormGroupSpec: POAP.POAPProviderConfig,
+  platFormGroupSpec: POAP.ProviderConfig,
 });
 
 platforms.set("Discord", {
   platform: new Discord.DiscordPlatform(),
-  platFormGroupSpec: Discord.DiscordProviderConfig,
+  platFormGroupSpec: Discord.ProviderConfig,
 });
 
 platforms.set("Linkedin", {
@@ -143,17 +155,17 @@ platforms.set("Linkedin", {
     clientId: process.env.NEXT_PUBLIC_PASSPORT_LINKEDIN_CLIENT_ID,
     redirectUri: process.env.NEXT_PUBLIC_PASSPORT_LINKEDIN_CALLBACK,
   }),
-  platFormGroupSpec: Linkedin.LinkedinProviderConfig,
+  platFormGroupSpec: Linkedin.ProviderConfig,
 });
 
 platforms.set("GTC", {
   platform: new GTC.GTCPlatform(),
-  platFormGroupSpec: GTC.GTCProviderConfig,
+  platFormGroupSpec: GTC.ProviderConfig,
 });
 
 platforms.set("GtcStaking", {
   platform: new GtcStaking.GTCStakingPlatform(),
-  platFormGroupSpec: GtcStaking.GTCStakingProviderConfig,
+  platFormGroupSpec: GtcStaking.ProviderConfig,
 });
 
 platforms.set("Google", {
@@ -161,13 +173,48 @@ platforms.set("Google", {
     clientId: process.env.NEXT_PUBLIC_PASSPORT_GOOGLE_CLIENT_ID,
     redirectUri: process.env.NEXT_PUBLIC_PASSPORT_GOOGLE_CALLBACK,
   }),
-  platFormGroupSpec: Google.GoogleProviderConfig,
+  platFormGroupSpec: Google.ProviderConfig,
 });
 
 platforms.set("Brightid", {
   platform: new Brightid.BrightidPlatform(),
-  platFormGroupSpec: Brightid.BrightidProviderConfig,
+  platFormGroupSpec: Brightid.ProviderConfig,
 });
+platforms.set("Coinbase", {
+  platform: new Coinbase.CoinbasePlatform({
+    clientId: process.env.NEXT_PUBLIC_PASSPORT_COINBASE_CLIENT_ID,
+    redirectUri: process.env.NEXT_PUBLIC_PASSPORT_COINBASE_CALLBACK,
+  }),
+  platFormGroupSpec: Coinbase.ProviderConfig,
+});
+
+if (process.env.NEXT_PUBLIC_FF_HYPERCERT_STAMP === "on") {
+  platforms.set("Hypercerts", {
+    platform: new Hypercerts.HypercertsPlatform(),
+    platFormGroupSpec: Hypercerts.ProviderConfig,
+  });
+}
+
+if (process.env.NEXT_PUBLIC_FF_GUILD_STAMP === "on") {
+  platforms.set("GuildXYZ", {
+    platform: new GuildXYZ.GuildXYZPlatform(),
+    platFormGroupSpec: GuildXYZ.ProviderConfig,
+  });
+}
+
+if (process.env.NEXT_PUBLIC_FF_PHI_STAMP === "on") {
+  platforms.set("PHI", {
+    platform: new PHI.PHIPlatform(),
+    platFormGroupSpec: PHI.ProviderConfig,
+  });
+}
+
+if (process.env.NEXT_PUBLIC_FF_HOLONYM_STAMP === "on") {
+  platforms.set("Holonym", {
+    platform: new Holonym.HolonymPlatform(),
+    platFormGroupSpec: Holonym.ProviderConfig,
+  });
+}
 
 export enum IsLoadingPassportState {
   Idle,
@@ -183,261 +230,30 @@ export type AllProvidersState = {
   };
 };
 
-const getProviderSpec = (platform: PLATFORM_ID, provider: string): ProviderSpec => {
-  return STAMP_PROVIDERS[platform]
-    ?.find((i) => i.providers.find((p) => p.name == provider))
-    ?.providers.find((p) => p.name == provider) as ProviderSpec;
-};
+// Generate {<stampName>: {providerSpec, stamp}} for all stamps
+const startingAllProvidersState: AllProvidersState = Object.values(stampPlatforms).reduce(
+  (allProvidersState, platform) => {
+    const platformGroupSpecs: PlatformGroupSpec[] = platform.ProviderConfig;
+    const platformProviderSpecs: ProviderSpec[] = platformGroupSpecs.map(({ providers }) => providers).flat();
 
-const startingAllProvidersState: AllProvidersState = {
-  Google: {
-    providerSpec: STAMP_PROVIDERS.Google as unknown as ProviderSpec,
-    stamp: undefined,
+    const platformProvidersState: AllProvidersState = platformProviderSpecs.reduce(
+      (providerState, providerSpec) => ({
+        ...providerState,
+        [providerSpec.name]: {
+          providerSpec,
+          stamp: undefined,
+        },
+      }),
+      {}
+    );
+
+    return {
+      ...allProvidersState,
+      ...platformProvidersState,
+    };
   },
-  Ens: {
-    providerSpec: getProviderSpec("Ens", "Ens"),
-    stamp: undefined,
-  },
-  Poh: {
-    providerSpec: getProviderSpec("Poh", "Poh"),
-    stamp: undefined,
-  },
-  Twitter: {
-    providerSpec: getProviderSpec("Twitter", "Twitter"),
-    stamp: undefined,
-  },
-  TwitterFollowerGT100: {
-    providerSpec: getProviderSpec("Twitter", "TwitterFollowerGT100"),
-    stamp: undefined,
-  },
-  TwitterFollowerGT500: {
-    providerSpec: getProviderSpec("Twitter", "TwitterFollowerGT500"),
-    stamp: undefined,
-  },
-  TwitterFollowerGTE1000: {
-    providerSpec: getProviderSpec("Twitter", "TwitterFollowerGTE1000"),
-    stamp: undefined,
-  },
-  TwitterFollowerGT5000: {
-    providerSpec: getProviderSpec("Twitter", "TwitterFollowerGT5000"),
-    stamp: undefined,
-  },
-  TwitterTweetGT10: {
-    providerSpec: getProviderSpec("Twitter", "TwitterTweetGT10"),
-    stamp: undefined,
-  },
-  POAP: {
-    providerSpec: getProviderSpec("POAP", "POAP"),
-    stamp: undefined,
-  },
-  Facebook: {
-    providerSpec: getProviderSpec("Facebook", "Facebook"),
-    stamp: undefined,
-  },
-  FacebookFriends: {
-    providerSpec: getProviderSpec("Facebook", "FacebookFriends"),
-    stamp: undefined,
-  },
-  FacebookProfilePicture: {
-    providerSpec: getProviderSpec("Facebook", "FacebookProfilePicture"),
-    stamp: undefined,
-  },
-  Brightid: {
-    providerSpec: getProviderSpec("Brightid", "Brightid"),
-    stamp: undefined,
-  },
-  Github: {
-    providerSpec: getProviderSpec("Github", "Github"),
-    stamp: undefined,
-  },
-  TenOrMoreGithubFollowers: {
-    providerSpec: getProviderSpec("Github", "TenOrMoreGithubFollowers"),
-    stamp: undefined,
-  },
-  FiftyOrMoreGithubFollowers: {
-    providerSpec: getProviderSpec("Github", "FiftyOrMoreGithubFollowers"),
-    stamp: undefined,
-  },
-  ForkedGithubRepoProvider: {
-    providerSpec: getProviderSpec("Github", "ForkedGithubRepoProvider"),
-    stamp: undefined,
-  },
-  StarredGithubRepoProvider: {
-    providerSpec: getProviderSpec("Github", "StarredGithubRepoProvider"),
-    stamp: undefined,
-  },
-  FiveOrMoreGithubRepos: {
-    providerSpec: getProviderSpec("Github", "FiveOrMoreGithubRepos"),
-    stamp: undefined,
-  },
-  Linkedin: {
-    providerSpec: getProviderSpec("Linkedin", "Linkedin"),
-    stamp: undefined,
-  },
-  Discord: {
-    providerSpec: getProviderSpec("Discord", "Discord"),
-    stamp: undefined,
-  },
-  Signer: {
-    providerSpec: getProviderSpec("Signer", "Signer"),
-    stamp: undefined,
-  },
-  GitPOAP: {
-    providerSpec: getProviderSpec("GitPOAP", "GitPOAP"),
-    stamp: undefined,
-  },
-  Snapshot: {
-    providerSpec: getProviderSpec("Snapshot", "Snapshot"),
-    stamp: undefined,
-  },
-  SnapshotProposalsProvider: {
-    providerSpec: getProviderSpec("Snapshot", "SnapshotProposalsProvider"),
-    stamp: undefined,
-  },
-  SnapshotVotesProvider: {
-    providerSpec: getProviderSpec("Snapshot", "SnapshotVotesProvider"),
-    stamp: undefined,
-  },
-  "ethPossessionsGte#1": {
-    providerSpec: getProviderSpec("ETH", "ethPossessionsGte#1"),
-    stamp: undefined,
-  },
-  "ethPossessionsGte#10": {
-    providerSpec: getProviderSpec("ETH", "ethPossessionsGte#10"),
-    stamp: undefined,
-  },
-  "ethPossessionsGte#32": {
-    providerSpec: getProviderSpec("ETH", "ethPossessionsGte#32"),
-    stamp: undefined,
-  },
-  FirstEthTxnProvider: {
-    providerSpec: getProviderSpec("ETH", "FirstEthTxnProvider"),
-    stamp: undefined,
-  },
-  EthGTEOneTxnProvider: {
-    providerSpec: getProviderSpec("ETH", "EthGTEOneTxnProvider"),
-    stamp: undefined,
-  },
-  EthGasProvider: {
-    providerSpec: getProviderSpec("ETH", "EthGasProvider"),
-    stamp: undefined,
-  },
-  "GitcoinContributorStatistics#numGrantsContributeToGte#1": {
-    providerSpec: getProviderSpec("Gitcoin", "GitcoinContributorStatistics#numGrantsContributeToGte#1"),
-    stamp: undefined,
-  },
-  "GitcoinContributorStatistics#numGrantsContributeToGte#10": {
-    providerSpec: getProviderSpec("Gitcoin", "GitcoinContributorStatistics#numGrantsContributeToGte#10"),
-    stamp: undefined,
-  },
-  "GitcoinContributorStatistics#numGrantsContributeToGte#25": {
-    providerSpec: getProviderSpec("Gitcoin", "GitcoinContributorStatistics#numGrantsContributeToGte#25"),
-    stamp: undefined,
-  },
-  "GitcoinContributorStatistics#numGrantsContributeToGte#100": {
-    providerSpec: getProviderSpec("Gitcoin", "GitcoinContributorStatistics#numGrantsContributeToGte#100"),
-    stamp: undefined,
-  },
-  "GitcoinContributorStatistics#totalContributionAmountGte#10": {
-    providerSpec: getProviderSpec("Gitcoin", "GitcoinContributorStatistics#totalContributionAmountGte#10"),
-    stamp: undefined,
-  },
-  "GitcoinContributorStatistics#totalContributionAmountGte#100": {
-    providerSpec: getProviderSpec("Gitcoin", "GitcoinContributorStatistics#totalContributionAmountGte#100"),
-    stamp: undefined,
-  },
-  "GitcoinContributorStatistics#totalContributionAmountGte#1000": {
-    providerSpec: getProviderSpec("Gitcoin", "GitcoinContributorStatistics#totalContributionAmountGte#1000"),
-    stamp: undefined,
-  },
-  "GitcoinContributorStatistics#numRoundsContributedToGte#1": {
-    providerSpec: getProviderSpec("Gitcoin", "GitcoinContributorStatistics#numRoundsContributedToGte#1"),
-    stamp: undefined,
-  },
-  "GitcoinContributorStatistics#numGr14ContributionsGte#1": {
-    providerSpec: getProviderSpec("Gitcoin", "GitcoinContributorStatistics#numGr14ContributionsGte#1"),
-    stamp: undefined,
-  },
-  "GitcoinGranteeStatistics#numOwnedGrants#1": {
-    providerSpec: getProviderSpec("Gitcoin", "GitcoinGranteeStatistics#numOwnedGrants#1"),
-    stamp: undefined,
-  },
-  "GitcoinGranteeStatistics#numGrantContributors#10": {
-    providerSpec: getProviderSpec("Gitcoin", "GitcoinGranteeStatistics#numGrantContributors#10"),
-    stamp: undefined,
-  },
-  "GitcoinGranteeStatistics#numGrantContributors#25": {
-    providerSpec: getProviderSpec("Gitcoin", "GitcoinGranteeStatistics#numGrantContributors#25"),
-    stamp: undefined,
-  },
-  "GitcoinGranteeStatistics#numGrantContributors#100": {
-    providerSpec: getProviderSpec("Gitcoin", "GitcoinGranteeStatistics#numGrantContributors#100"),
-    stamp: undefined,
-  },
-  "GitcoinGranteeStatistics#totalContributionAmount#100": {
-    providerSpec: getProviderSpec("Gitcoin", "GitcoinGranteeStatistics#totalContributionAmount#100"),
-    stamp: undefined,
-  },
-  "GitcoinGranteeStatistics#totalContributionAmount#1000": {
-    providerSpec: getProviderSpec("Gitcoin", "GitcoinGranteeStatistics#totalContributionAmount#1000"),
-    stamp: undefined,
-  },
-  "GitcoinGranteeStatistics#totalContributionAmount#10000": {
-    providerSpec: getProviderSpec("Gitcoin", "GitcoinGranteeStatistics#totalContributionAmount#10000"),
-    stamp: undefined,
-  },
-  "GitcoinGranteeStatistics#numGrantsInEcoAndCauseRound#1": {
-    providerSpec: getProviderSpec("Gitcoin", "GitcoinGranteeStatistics#numGrantsInEcoAndCauseRound#1"),
-    stamp: undefined,
-  },
-  "gtcPossessionsGte#10": {
-    providerSpec: getProviderSpec("GTC", "gtcPossessionsGte#10"),
-    stamp: undefined,
-  },
-  "gtcPossessionsGte#100": {
-    providerSpec: getProviderSpec("GTC", "gtcPossessionsGte#100"),
-  },
-  SelfStakingBronze: {
-    providerSpec: getProviderSpec("GtcStaking", "SelfStakingBronze"),
-    stamp: undefined,
-  },
-  SelfStakingSilver: {
-    providerSpec: getProviderSpec("GtcStaking", "SelfStakingSilver"),
-    stamp: undefined,
-  },
-  SelfStakingGold: {
-    providerSpec: getProviderSpec("GtcStaking", "SelfStakingGold"),
-    stamp: undefined,
-  },
-  CommunityStakingBronze: {
-    providerSpec: getProviderSpec("GtcStaking", "CommunityStakingBronze"),
-    stamp: undefined,
-  },
-  CommunityStakingSilver: {
-    providerSpec: getProviderSpec("GtcStaking", "CommunityStakingSilver"),
-    stamp: undefined,
-  },
-  CommunityStakingGold: {
-    providerSpec: getProviderSpec("GtcStaking", "CommunityStakingGold"),
-    stamp: undefined,
-  },
-  NFT: {
-    providerSpec: getProviderSpec("NFT", "NFT"),
-    stamp: undefined,
-  },
-  ZkSync: {
-    providerSpec: getProviderSpec("ZkSync", "ZkSync"),
-    stamp: undefined,
-  },
-  Lens: {
-    providerSpec: getProviderSpec("Lens", "Lens"),
-    stamp: undefined,
-  },
-  GnosisSafe: {
-    providerSpec: getProviderSpec("GnosisSafe", "GnosisSafe"),
-    stamp: undefined,
-  },
-};
+  {}
+);
 
 const startingState: CeramicContextState = {
   passport: undefined,
@@ -446,9 +262,10 @@ const startingState: CeramicContextState = {
   allPlatforms: platforms,
   handleCreatePassport: async () => {},
   handleAddStamps: async () => {},
+  handlePatchStamps: async () => {},
   handleDeleteStamps: async () => {},
   handleCheckRefreshPassport: async () => false,
-  passportHasCacaoError: () => false,
+  passportHasCacaoError: false,
   cancelCeramicConnection: () => {},
   userDid: undefined,
   expiredProviders: [],
@@ -468,10 +285,12 @@ export const CeramicContextProvider = ({ children }: { children: any }) => {
   const [userDid, setUserDid] = useState<string | undefined>();
   const [expiredProviders, setExpiredProviders] = useState<PROVIDER_ID[]>([]);
   const [passportLoadResponse, setPassportLoadResponse] = useState<PassportLoadResponse | undefined>();
+  const [passportHasCacaoError, setPassportHasCacaoError] = useState<boolean>(false);
   const [viewerConnection] = useViewerConnection();
   const [database, setDatabase] = useState<PassportDatabase | undefined>(undefined);
 
   const { address, dbAccessToken, dbAccessTokenStatus } = useContext(UserContext);
+  const { refreshScore } = useContext(ScorerContext);
 
   useEffect(() => {
     return () => {
@@ -599,6 +418,8 @@ export const CeramicContextProvider = ({ children }: { children: any }) => {
     }
 
     setPassportLoadResponse({ passport, status, errorDetails });
+    setPassportHasCacaoError(CACAO_ERROR_STATUSES.includes(status));
+
     return passportToReturn;
   };
 
@@ -740,11 +561,46 @@ export const CeramicContextProvider = ({ children }: { children: any }) => {
         await database.addStamps(stamps);
         const newPassport = await fetchPassport(database, true);
         if (ceramicClient && newPassport) {
-          ceramicClient.setStamps(newPassport.stamps);
+          ceramicClient.setStamps(newPassport.stamps).catch((e) => console.log("error setting ceramic stamps", e));
+        }
+        if (dbAccessToken) {
+          refreshScore(address, dbAccessToken);
         }
       }
     } catch (e) {
       datadogLogs.logger.error("Error adding multiple stamps", { stamps, error: e });
+      throw e;
+    }
+  };
+
+  const handlePatchStamps = async (stampPatches: StampPatch[]): Promise<void> => {
+    try {
+      if (database) {
+        await database.patchStamps(stampPatches);
+        const newPassport = await fetchPassport(database, true);
+
+        if (ceramicClient && newPassport) {
+          (async () => {
+            try {
+              const deleteProviderIds = stampPatches
+                .filter(({ credential }) => !credential)
+                .map(({ provider }) => provider);
+
+              if (deleteProviderIds.length) await ceramicClient.deleteStampIDs(deleteProviderIds);
+
+              await ceramicClient.setStamps(newPassport.stamps);
+            } catch (e) {
+              console.log("error patching ceramic stamps", e);
+            }
+          })();
+        }
+
+        if (dbAccessToken) {
+          refreshScore(address, dbAccessToken);
+        }
+      }
+    } catch (e) {
+      datadogLogs.logger.error("Error patching stamps", { stampPatches, error: e });
       throw e;
     }
   };
@@ -756,7 +612,10 @@ export const CeramicContextProvider = ({ children }: { children: any }) => {
 
         const newPassport = await fetchPassport(database, true);
         if (ceramicClient && newPassport) {
-          ceramicClient.setStamps(newPassport.stamps);
+          ceramicClient.setStamps(newPassport.stamps).catch((e) => console.log("error setting ceramic stamps", e));
+        }
+        if (dbAccessToken) {
+          refreshScore(address, dbAccessToken);
         }
       }
     } catch (e) {
@@ -790,26 +649,6 @@ export const CeramicContextProvider = ({ children }: { children: any }) => {
     setAllProviderState(startingAllProvidersState);
   };
 
-  const passportHasCacaoError = (): boolean => {
-    const errorStatuses: PassportLoadStatus[] = ["PassportCacaoError", "StampCacaoError"];
-    if (passportLoadResponse) return errorStatuses.includes(passportLoadResponse.status);
-    else return false;
-  };
-
-  const stateMemo = useMemo(
-    () => ({
-      passport,
-      isLoadingPassport,
-      allProvidersState,
-      handleCreatePassport,
-      handleAddStamps,
-      handleDeleteStamps,
-      userDid,
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [passport, isLoadingPassport, allProvidersState, userDid]
-  );
-
   const providerProps = {
     passport,
     isLoadingPassport,
@@ -817,6 +656,7 @@ export const CeramicContextProvider = ({ children }: { children: any }) => {
     allPlatforms: platforms,
     handleCreatePassport,
     handleAddStamps,
+    handlePatchStamps,
     handleDeleteStamps,
     handleCheckRefreshPassport,
     cancelCeramicConnection,

@@ -2,6 +2,8 @@ import { JsonRpcSigner } from "@ethersproject/providers";
 // BrightId Shared Types
 export { BrightIdProcedureResponse, BrightIdVerificationResponse, BrightIdSponsorshipResponse } from "./brightid";
 
+import { MultiAttestationRequest } from "@ethereum-attestation-service/eas-sdk";
+
 // Typing for required parts of DIDKit
 export type DIDKitLib = {
   verifyCredential: (vc: string, proofOptions: string) => Promise<string>;
@@ -57,7 +59,6 @@ export type RequestPayload = {
   jsonRpcSigner?: JsonRpcSigner;
   challenge?: string;
   issuer?: string;
-  rpcUrl?: string;
 };
 
 // response Object return by verify procedure
@@ -76,6 +77,17 @@ export type VerifiedPayload = {
   error?: string[];
   // This will be combined with the ProofRecord (built from the verified content in the Payload)
   record?: { [k: string]: string };
+};
+
+export type CheckRequestBody = {
+  payload: RequestPayload;
+};
+
+export type CheckResponseBody = {
+  valid: boolean;
+  type: string;
+  error?: string;
+  code?: number;
 };
 
 // these values are placed into a sha256 along with the IAM_PRIVATE_KEY to generate a deterministic but protected hash of the PII info
@@ -133,6 +145,8 @@ export type Stamp = {
   credential: VerifiableCredential;
 };
 
+export type StampPatch = Pick<Stamp, "provider"> & Partial<Pick<Stamp, "credential">>;
+
 export type Passport = {
   issuanceDate?: Date;
   expiryDate?: Date;
@@ -154,6 +168,29 @@ export type PassportLoadResponse = {
   passport?: Passport;
   status: PassportLoadStatus;
   errorDetails?: PassportLoadErrorDetails;
+};
+
+export type PassportAttestation = {
+  multiAttestationRequest: MultiAttestationRequest[];
+  nonce: number;
+  fee: any;
+};
+
+export type EasPayload = {
+  passport: PassportAttestation;
+  signature: {
+    v: number;
+    r: string;
+    s: string;
+  };
+  invalidCredentials: VerifiableCredential[];
+  error?: string;
+};
+
+export type EasRequestBody = {
+  nonce: number;
+  credentials: VerifiableCredential[];
+  dbAccessToken: string;
 };
 
 // Passport DID
@@ -180,7 +217,12 @@ export type PLATFORM_ID =
   | "NFT"
   | "ZkSync"
   | "Lens"
-  | "GnosisSafe";
+  | "GnosisSafe"
+  | "Coinbase"
+  | "GuildXYZ"
+  | "Hypercerts"
+  | "PHI"
+  | "Holonym";
 
 export type PROVIDER_ID =
   | "Signer"
@@ -195,7 +237,6 @@ export type PROVIDER_ID =
   | "TwitterFollowerGT5000"
   | "POAP"
   | "Facebook"
-  | "FacebookFriends"
   | "FacebookProfilePicture"
   | "Brightid"
   | "Github"
@@ -243,5 +284,14 @@ export type PROVIDER_ID =
   | "CommunityStakingGold"
   | "NFT"
   | "ZkSync"
+  | "ZkSyncEra"
   | "Lens"
-  | "GnosisSafe";
+  | "GnosisSafe"
+  | "Coinbase"
+  | "GuildMember"
+  | "GuildAdmin"
+  | "GuildPassportMember"
+  | "Hypercerts"
+  | "PHIActivitySilver"
+  | "PHIActivityGold"
+  | "HolonymGovIdProvider";

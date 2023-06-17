@@ -16,6 +16,7 @@ jest.mock("@didtools/cacao", () => ({
 export const makeTestUserContext = (initialState?: Partial<UserContextState>): UserContextState => {
   return {
     loggedIn: true,
+    loggingIn: false,
     toggleConnection: jest.fn(),
     handleDisconnection: jest.fn(),
     address: mockAddress,
@@ -24,6 +25,8 @@ export const makeTestUserContext = (initialState?: Partial<UserContextState>): U
     walletLabel: mockWallet.label,
     dbAccessToken: "token",
     dbAccessTokenStatus: "idle",
+    userWarning: undefined,
+    setUserWarning: jest.fn(),
     ...initialState,
   };
 };
@@ -87,10 +90,6 @@ export const makeTestCeramicContext = (initialState?: Partial<CeramicContextStat
       },
       Facebook: {
         providerSpec: getProviderSpec("Facebook", "Facebook"),
-        stamp: undefined,
-      },
-      FacebookFriends: {
-        providerSpec: getProviderSpec("Facebook", "FacebookFriends"),
         stamp: undefined,
       },
       FacebookProfilePicture: {
@@ -209,14 +208,19 @@ export const makeTestCeramicContext = (initialState?: Partial<CeramicContextStat
         providerSpec: getProviderSpec("Gitcoin", "GitcoinGranteeStatistics#numGrantsInEcoAndCauseRound#1"),
         stamp: undefined,
       },
+      Coinbase: {
+        providerSpec: getProviderSpec("Coinbase", "Coinbase"),
+        stamp: undefined,
+      },
     },
     passportLoadResponse: undefined,
     handleAddStamps: jest.fn(),
+    handlePatchStamps: jest.fn(),
     handleCreatePassport: jest.fn(),
     handleDeleteStamps: jest.fn(),
     handleCheckRefreshPassport: () => Promise.resolve(true),
     expiredProviders: [],
-    passportHasCacaoError: () => false,
+    passportHasCacaoError: false,
     cancelCeramicConnection: jest.fn(),
     ...initialState,
   };
@@ -226,10 +230,9 @@ export const renderWithContext = (
   userContext: UserContextState,
   ceramicContext: CeramicContextState,
   ui: React.ReactElement<any, string | React.JSXElementConstructor<any>>
-) => {
+) =>
   render(
     <UserContext.Provider value={userContext}>
       <CeramicContext.Provider value={ceramicContext}>{ui}</CeramicContext.Provider>
     </UserContext.Provider>
   );
-};

@@ -6,13 +6,15 @@ import { CeramicContext } from "../context/ceramicContext";
 import { UserContext } from "../context/userContext";
 
 // utils
-import { fetchPossibleEVMStamps, PossibleEVMProvider, AdditionalSignature } from "../signer/utils";
+import { fetchPossibleEVMStamps, ValidatedPlatform, AdditionalSignature } from "../signer/utils";
 import { getPlatformSpec } from "../config/platforms";
 
 // Components
-import { Button, Spinner } from "@chakra-ui/react";
+import { Spinner } from "@chakra-ui/react";
 import { StampSelector } from "./StampSelector";
 import { PlatformDetails } from "./PlatformDetails";
+import { Button } from "./Button";
+import { LoadButton } from "./LoadButton";
 
 // Passport imports
 import { PROVIDER_ID, Stamp, VerifiableCredential, VerifiableCredentialRecord } from "@gitcoin/passport-types";
@@ -21,7 +23,6 @@ import { fetchVerifiableCredential } from "@gitcoin/passport-identity/dist/commo
 // --- Datadog
 import { datadogLogs } from "@datadog/browser-logs";
 const iamUrl = process.env.NEXT_PUBLIC_PASSPORT_IAM_URL || "";
-const rpcUrl = process.env.NEXT_PUBLIC_PASSPORT_MAINNET_RPC_URL;
 
 export const AdditionalStampModal = ({
   additionalSigner,
@@ -33,8 +34,8 @@ export const AdditionalStampModal = ({
   const { allPlatforms, handleAddStamps, handleDeleteStamps } = useContext(CeramicContext);
   const { signer, address } = useContext(UserContext);
   const [platformsLoading, setPlatformsLoading] = useState(false);
-  const [possiblyVerifiedPlatforms, setPossiblyVerifiedPlatforms] = useState<PossibleEVMProvider[]>([]);
-  const [activePlatform, setActivePlatform] = useState<PossibleEVMProvider | null>(null);
+  const [possiblyVerifiedPlatforms, setPossiblyVerifiedPlatforms] = useState<ValidatedPlatform[]>([]);
+  const [activePlatform, setActivePlatform] = useState<ValidatedPlatform | null>(null);
   const [loading, setLoading] = useState(false);
   const [verifiedPlatforms, setVerifiedPlatforms] = useState<string[]>([]);
 
@@ -63,7 +64,6 @@ export const AdditionalStampModal = ({
               version: "0.0.0",
               address: address || "",
               proofs: {},
-              rpcUrl,
               signer: {
                 challenge: additionalSigner.challenge,
                 signature: additionalSigner.sig,
@@ -99,7 +99,7 @@ export const AdditionalStampModal = ({
         datadogLogs.logger.info("Successfully saved Stamp", { platform: platform.platformId });
         // grab all providers who are verified from the verify response
         const actualVerifiedProviders = providerIds.filter(
-          (providerId) =>
+          (providerId: any) =>
             !!vcs.find((vc: Stamp | undefined) => vc?.credential?.credentialSubject?.provider === providerId)
         );
 
@@ -114,7 +114,6 @@ export const AdditionalStampModal = ({
         setLoading(false);
       } catch (e) {
         datadogLogs.logger.error("Verification Error", { error: e, platform: platform.platformId });
-        throw e;
       } finally {
         setLoading(false);
       }
@@ -129,13 +128,13 @@ export const AdditionalStampModal = ({
 
   const providerIds =
     activePlatform?.platformProps.platFormGroupSpec?.reduce((all, stamp, i) => {
-      return all.concat(stamp.providers?.map((provider) => provider.name as PROVIDER_ID));
+      return all.concat(stamp.providers?.map((provider: any) => provider.name as PROVIDER_ID));
     }, [] as PROVIDER_ID[]) || [];
 
   useEffect(() => {
     const fetchPlatforms = async () => {
       setPlatformsLoading(true);
-      const verifiedPlatforms = await fetchPossibleEVMStamps(additionalSigner.addr, allPlatforms);
+      const verifiedPlatforms = await fetchPossibleEVMStamps(additionalSigner.addr, allPlatforms, undefined);
       setPossiblyVerifiedPlatforms(verifiedPlatforms);
       setPlatformsLoading(false);
     };
@@ -149,7 +148,7 @@ export const AdditionalStampModal = ({
       <>
         <div className="flex w-full justify-start">
           <button onClick={() => setActivePlatform(null)}>
-            <img width="20px" src="./assets/arrow-left-icon.svg" alt="Check Icon" />
+            <img width="20px" className="invert" src="./assets/arrow-left-icon.svg" alt="Check Icon" />
           </button>
         </div>
         <PlatformDetails currentPlatform={platform!} />
@@ -169,7 +168,7 @@ export const AdditionalStampModal = ({
           <hr className="border-1" />
         </div>
 
-        <div className="flex flex-col">
+        <div className="mb-4 flex w-full flex-col">
           <StampSelector
             currentProviders={activePlatform.platformProps.platFormGroupSpec}
             verifiedProviders={verifiedProviders}
@@ -177,67 +176,57 @@ export const AdditionalStampModal = ({
             setSelectedProviders={(providerIds) => setSelectedProviders && setSelectedProviders(providerIds)}
           />
         </div>
-        <button
-          data-testid="verify-btn"
-          className="sidebar-verify-btn mx-auto flex justify-center"
-          onClick={handleFetchCredential}
-        >
-          {loading ? (
-            <>
-              <Spinner size="sm" className="my-auto mr-2" />
-              <p>Verifying</p>
-            </>
-          ) : (
-            <p>Verify</p>
-          )}
-        </button>
+        <LoadButton isLoading={loading} className="w-1/2" data-testid="verify-btn" onClick={handleFetchCredential}>
+          {loading ? "Verifying" : "Verify"}
+        </LoadButton>
       </>
     );
   }
 
   return (
     <>
-      <div className="flex flex-col items-center text-center text-gray-900">
+      <div className="flex flex-col items-center text-center">
         <h2 className="mt-2 font-semibold">Stamp Verification</h2>
-        <p className="my-2 text-gray-600">We found the following stamps, select which ones you would like to link.</p>
-        <div className="my-4 flex w-full flex-col rounded bg-yellow p-4">
+        <p className="my-2">We found the following stamps, select which ones you would like to link.</p>
+        <div className="my-4 flex w-full flex-col rounded-md border border-accent-2 p-4">
           <p className="text-sm font-semibold">Second Account</p>
           <p className="text-sm">{additionalSigner.addr}</p>
         </div>
         <div className="flex w-full flex-col">
-          <p className="w-full text-left text-sm font-semibold text-gray-600">Accounts</p>
+          <p className="w-full text-left text-sm font-semibold">Accounts</p>
           <hr className="border-1" />
           {platformsLoading ? (
             <div className="mt-6 flex w-full justify-center">
               <Spinner size="lg" />
             </div>
           ) : (
-            possiblyVerifiedPlatforms.map((verifiedPlatform: PossibleEVMProvider) => {
+            possiblyVerifiedPlatforms.map((verifiedPlatform: ValidatedPlatform) => {
               const platform = getPlatformSpec(verifiedPlatform.platformProps.platform.path);
               if (platform) {
                 return (
                   <div key={platform.name}>
                     <div className="flex w-full justify-between">
-                      <div className="flex">
-                        <img width="25px" alt="Platform Image" src={platform?.icon} className="m-3" />
-                        <p className="pt-2 text-sm font-semibold">{platform.name}</p>
+                      <div className="flex items-center">
+                        <img alt="Platform Image" src={platform?.icon} className="m-3 h-8 w-8" />
+                        <p className="font-semibold">{platform.name}</p>
                       </div>
                       {verifiedPlatforms.includes(platform.name) ? (
-                        <button
-                          onClick={() => setActivePlatform(verifiedPlatform)}
-                          className="mt-2 flex h-8 w-24 items-center justify-center rounded-md bg-green-200 py-6 text-sm font-semibold "
-                        >
-                          <img width="20px" alt="Check Icon" src="./assets/check-icon.svg" />
-                          Verified
-                        </button>
+                        <Button onClick={() => setActivePlatform(verifiedPlatform)} className="my-2">
+                          <div className="flex items-center">
+                            <img width="20px" className="pr-1" alt="Check Icon" src="./assets/check-icon.svg" />
+                            Verified
+                          </div>
+                        </Button>
                       ) : (
                         <Button
                           data-testid={`${verifiedPlatform.platformProps.platform.path}-add-btn`}
-                          mt={2}
                           onClick={() => setActivePlatform(verifiedPlatform)}
+                          className="my-2"
                         >
-                          <img width="20px" alt="Plus Icon" src="./assets/plus-icon.svg" />
-                          Add
+                          <div className="flex items-center">
+                            <img className="pr-1 invert" width="20px" alt="Plus Icon" src="./assets/plus-icon.svg" />
+                            Add
+                          </div>
                         </Button>
                       )}
                     </div>
@@ -248,19 +237,19 @@ export const AdditionalStampModal = ({
             })
           )}
           {!platformsLoading && possiblyVerifiedPlatforms.length === 0 && (
-            <p className="mt-4 font-semibold text-gray-600">Additional stamps were not Found</p>
+            <p className="mt-4 font-semibold">Additional stamps were not Found</p>
           )}
         </div>
       </div>
-      <button
-        className="sidebar-verify-btn mx-auto flex justify-center"
+      <Button
+        className="mt-4 w-1/2"
         onClick={() => {
           resetState();
           onClose();
         }}
       >
         Done
-      </button>
+      </Button>
     </>
   );
 };

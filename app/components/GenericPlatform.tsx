@@ -10,24 +10,28 @@ import {
   VerifiableCredential,
   CredentialResponseBody,
   VerifiableCredentialRecord,
+  PROVIDER_ID,
+  PLATFORM_ID,
+  StampPatch,
 } from "@gitcoin/passport-types";
 import { ProviderPayload } from "@gitcoin/passport-platforms";
-import { fetchVerifiableCredential } from "@gitcoin/passport-identity/dist/commonjs/src/credentials";
+import { fetchVerifiableCredential, verifyCredential } from "@gitcoin/passport-identity/dist/commonjs/src/credentials";
 
 // --- Style Components
 import { SideBarContent } from "./SideBarContent";
 import { DoneToastContent } from "./DoneToastContent";
 import { useToast } from "@chakra-ui/react";
 import { GenericBanner } from "./GenericBanner";
+import { LoadButton } from "./LoadButton";
 
 // --- Context
 import { CeramicContext } from "../context/ceramicContext";
 import { UserContext } from "../context/userContext";
 
 // --- Types
-import { PlatformGroupSpec, Platform, PROVIDER_ID, PLATFORM_ID } from "@gitcoin/passport-platforms/dist/commonjs/types";
+import { PlatformGroupSpec } from "@gitcoin/passport-platforms";
 import { PlatformClass } from "@gitcoin/passport-platforms";
-import { getPlatformSpec } from "@gitcoin/passport-platforms/dist/commonjs/platforms-config";
+import { getPlatformSpec } from "../config/platforms";
 
 // --- Helpers
 import { difference, generateUID } from "../utils/helpers";
@@ -53,32 +57,36 @@ enum VerificationStatuses {
 }
 
 const iamUrl = process.env.NEXT_PUBLIC_PASSPORT_IAM_URL || "";
-const rpcUrl = process.env.NEXT_PUBLIC_PASSPORT_MAINNET_RPC_URL;
 
 const checkIcon = "../../assets/check-icon.svg";
 
-export const GenericPlatform = ({ platFormGroupSpec, platform }: PlatformProps): JSX.Element => {
+type GenericPlatformProps = PlatformProps & { onClose: () => void };
+
+export const GenericPlatform = ({ platFormGroupSpec, platform, onClose }: GenericPlatformProps): JSX.Element => {
   const { address, signer } = useContext(UserContext);
-  const { handleAddStamps, handleDeleteStamps, allProvidersState, userDid } = useContext(CeramicContext);
+  const { handlePatchStamps, allProvidersState, userDid } = useContext(CeramicContext);
   const [isLoading, setLoading] = useState(false);
   const [canSubmit, setCanSubmit] = useState(false);
   const [showNoStampModal, setShowNoStampModal] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   // --- Chakra functions
   const toast = useToast();
 
   // find all providerIds
-  const providerIds = useMemo(
+  const platformProviderIds = useMemo(
     () =>
       platFormGroupSpec?.reduce((all, stamp) => {
-        return all.concat(stamp.providers?.map((provider) => provider.name as PROVIDER_ID));
+        return all.concat(stamp.providers?.map((provider: any) => provider.name as PROVIDER_ID));
       }, [] as PROVIDER_ID[]) || [],
     [platFormGroupSpec]
   );
 
-  // SelectedProviders will be passed in to the sidebar to be filled there...
+  // VerifiedProviders will be passed in to the sidebar to be filled there...
   const [verifiedProviders, setVerifiedProviders] = useState<PROVIDER_ID[]>(
-    providerIds.filter((providerId) => typeof allProvidersState[providerId]?.stamp?.credential !== "undefined")
+    platformProviderIds.filter(
+      (providerId: any) => typeof allProvidersState[providerId as PROVIDER_ID]?.stamp?.credential !== "undefined"
+    )
   );
   // SelectedProviders will be passed in to the sidebar to be filled there...
   const [selectedProviders, setSelectedProviders] = useState<PROVIDER_ID[]>([...verifiedProviders]);
@@ -88,9 +96,7 @@ export const GenericPlatform = ({ platFormGroupSpec, platform }: PlatformProps):
 
   // any time we change selection state...
   useEffect(() => {
-    if (selectedProviders.length !== verifiedProviders.length) {
-      setCanSubmit(true);
-    }
+    setCanSubmit(selectedProviders.length !== verifiedProviders.length);
   }, [selectedProviders, verifiedProviders]);
 
   const waitForRedirect = (timeout?: number): Promise<ProviderPayload> => {
@@ -126,7 +132,7 @@ export const GenericPlatform = ({ platFormGroupSpec, platform }: PlatformProps):
       toast({
         duration: 9000,
         isClosable: true,
-        render: (result) => (
+        render: (result: any) => (
           <div className="rounded-md bg-blue-darkblue p-2 text-white">
             <div className="flex p-4">
               <button className="inline-flex flex-shrink-0 cursor-not-allowed">
@@ -137,7 +143,7 @@ export const GenericPlatform = ({ platFormGroupSpec, platform }: PlatformProps):
                 />
               </button>
               <div className="flex-grow pl-6">
-                <h2 className="title-font mb-2 text-lg font-bold">Sponsored through Gitcoin for Bright ID</h2>
+                <h2 className="mb-2 text-lg font-bold">Sponsored through Gitcoin for Bright ID</h2>
                 <p className="text-base leading-relaxed">{`For verification status updates, check BrightID's App.`}</p>
                 <p className="text-base leading-relaxed">
                   Once you are verified by BrightID - return here to complete this Stamp.
@@ -186,51 +192,36 @@ export const GenericPlatform = ({ platFormGroupSpec, platform }: PlatformProps):
         return;
       }
 
-      // This array will contain all providers that new validated VCs
-      let vcs: Stamp[] = [];
+      const verifiedCredentials =
+        selectedProviders.length > 0
+          ? (
+              await fetchVerifiableCredential(
+                iamUrl,
+                {
+                  type: platform.platformId,
+                  types: selectedProviders,
+                  version: "0.0.0",
+                  address: address || "",
+                  proofs: providerPayload,
+                },
+                signer as { signMessage: (message: string) => Promise<string> }
+              )
+            ).credentials?.filter((cred: any) => !cred.error) || []
+          : [];
 
-      if (selectedProviders.length > 0) {
-        const verified: VerifiableCredentialRecord = await fetchVerifiableCredential(
-          iamUrl,
-          {
-            type: platform.platformId,
-            types: selectedProviders,
-            version: "0.0.0",
-            address: address || "",
-            proofs: providerPayload,
-            rpcUrl,
-          },
-          signer as { signMessage: (message: string) => Promise<string> }
-        );
+      const stampPatches: StampPatch[] = platformProviderIds.map((provider: PROVIDER_ID) => {
+        const cred = verifiedCredentials.find((cred: any) => cred.record?.type === provider);
+        if (cred) return { provider, credential: cred.credential as VerifiableCredential };
+        else return { provider };
+      });
 
-        // because we provided a types array in the params we expect to receive a
-        // credentials array in the response...
-        if (verified.credentials) {
-          for (let i = 0; i < verified.credentials.length; i++) {
-            let cred = verified.credentials[i];
-            if (!cred.error && providerIds.find((providerId: PROVIDER_ID) => cred?.record?.type === providerId)) {
-              // add each of the requested/received stamps to the passport...
-              vcs.push({
-                provider: cred.record?.type as PROVIDER_ID,
-                credential: cred.credential as VerifiableCredential,
-              });
-            }
-          }
-        }
-      }
+      await handlePatchStamps(stampPatches);
 
-      // Delete all stamps ...
-      await handleDeleteStamps(providerIds as PROVIDER_ID[]);
-
-      // .. and now add all newly validate stamps
-      if (vcs.length > 0) {
-        await handleAddStamps(vcs);
-      }
       datadogLogs.logger.info("Successfully saved Stamp", { platform: platform.platformId });
       // grab all providers who are verified from the verify response
-      const actualVerifiedProviders = providerIds.filter(
-        (providerId) =>
-          !!vcs.find((vc: Stamp | undefined) => vc?.credential?.credentialSubject?.provider === providerId)
+      const actualVerifiedProviders = platformProviderIds.filter(
+        (providerId: any) =>
+          !!stampPatches.find((stampPatch) => stampPatch?.credential?.credentialSubject?.provider === providerId)
       );
       // both verified and selected should look the same after save
       setVerifiedProviders([...actualVerifiedProviders]);
@@ -281,13 +272,14 @@ export const GenericPlatform = ({ platFormGroupSpec, platform }: PlatformProps):
       );
     } finally {
       setLoading(false);
+      setSubmitted(true);
     }
   };
 
   // --- Done Toast Helper
   const doneToast = (title: string, body: string, icon: string, platformId: PLATFORM_ID) => {
     toast({
-      duration: 5000,
+      duration: 9000,
       isClosable: true,
       render: (result: any) => (
         <DoneToastContent title={title} body={body} icon={icon} platformId={platformId} result={result} />
@@ -300,7 +292,7 @@ export const GenericPlatform = ({ platFormGroupSpec, platform }: PlatformProps):
     initialMinusUpdated: Set<PROVIDER_ID>,
     updatedMinusInitial: Set<PROVIDER_ID>
   ) => {
-    if (updatedMinusInitial.size === providerIds.length) {
+    if (updatedMinusInitial.size === platformProviderIds.length) {
       return VerificationStatuses.AllVerified;
     } else if (updatedVerifiedProviders.size > 0 && updatedMinusInitial.size === 0 && initialMinusUpdated.size === 0) {
       return VerificationStatuses.ReVerified;
@@ -386,6 +378,27 @@ export const GenericPlatform = ({ platFormGroupSpec, platform }: PlatformProps):
     }
   };
 
+  const buttonText = useMemo(() => {
+    const hasStamps = verifiedProviders.length > 0;
+
+    if (isLoading) {
+      if (hasStamps) {
+        return "Saving...";
+      }
+      return "Verifying...";
+    }
+
+    if (submitted && !canSubmit) {
+      return "Close";
+    }
+
+    if (hasStamps) {
+      return "Save";
+    }
+
+    return "Verify";
+  }, [isLoading, submitted, canSubmit, verifiedProviders.length]);
+
   return (
     <>
       <SideBarContent
@@ -397,16 +410,17 @@ export const GenericPlatform = ({ platFormGroupSpec, platform }: PlatformProps):
         isLoading={isLoading}
         infoElement={platform.banner ? <GenericBanner banner={platform.banner} /> : undefined}
         verifyButton={
-          <>
-            <button
-              disabled={!canSubmit}
-              onClick={handleFetchCredential}
+          <div className="px-4">
+            <LoadButton
+              className="mt-10 w-full"
+              isLoading={isLoading}
+              disabled={!submitted && !canSubmit}
+              onClick={canSubmit ? handleFetchCredential : onClose}
               data-testid={`button-verify-${platform.platformId}`}
-              className="sidebar-verify-btn"
             >
-              {verifiedProviders.length > 0 ? "Save" : "Verify"}
-            </button>
-          </>
+              {buttonText}
+            </LoadButton>
+          </div>
         }
       />
       <NoStampModal isOpen={showNoStampModal} onClose={() => setShowNoStampModal(false)} />

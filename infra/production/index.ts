@@ -152,7 +152,8 @@ const service = new awsx.ecs.FargateService("dpopp-iam", {
     containers: {
       iam: {
         image: dockerGtcPassportIamImage,
-        memory: 1024,
+        memory: 2048,
+        cpu: 1000,
         portMappings: [httpsListener],
         links: [],
         secrets: [
@@ -256,16 +257,79 @@ const service = new awsx.ecs.FargateService("dpopp-iam", {
             name: "GTC_STAKING_GRAPH_API_KEY",
             valueFrom: `${IAM_SERVER_SSM_ARN}:GTC_STAKING_GRAPH_API_KEY::`,
           },
+          {
+            name: "GTC_STAKING_ROUND",
+            valueFrom: `${IAM_SERVER_SSM_ARN}:GTC_STAKING_ROUND::`,
+          },
+          {
+            name: "COINBASE_CLIENT_ID",
+            valueFrom: `${IAM_SERVER_SSM_ARN}:COINBASE_CLIENT_ID::`,
+          },
+          {
+            name: "COINBASE_CLIENT_SECRET",
+            valueFrom: `${IAM_SERVER_SSM_ARN}:COINBASE_CLIENT_SECRET::`,
+          },
+          {
+            name: "COINBASE_CALLBACK",
+            valueFrom: `${IAM_SERVER_SSM_ARN}:COINBASE_CALLBACK::`,
+          },
+          {
+            name: "ATTESTATION_SIGNER_PRIVATE_KEY",
+            valueFrom: `${IAM_SERVER_SSM_ARN}:ATTESTATION_SIGNER_PRIVATE_KEY::`,
+          },
+          {
+            name: "GITCOIN_VERIFIER_CONTRACT_ADDRESS",
+            valueFrom: `${IAM_SERVER_SSM_ARN}:GITCOIN_VERIFIER_CONTRACT_ADDRESS::`,
+          },
+          {
+            name: "GITCOIN_VERIFIER_CHAIN_ID",
+            valueFrom: `${IAM_SERVER_SSM_ARN}:GITCOIN_VERIFIER_CHAIN_ID::`,
+          },
+          {
+            name: "ALLO_SCORER_ID",
+            valueFrom: `${IAM_SERVER_SSM_ARN}:ALLO_SCORER_ID::`,
+          },
+          {
+            name: "SCORER_ENDPOINT",
+            valueFrom: `${IAM_SERVER_SSM_ARN}:SCORER_ENDPOINT::`,
+          },
+          {
+            name: "SCORER_API_KEY",
+            valueFrom: `${IAM_SERVER_SSM_ARN}:SCORER_API_KEY::`,
+          },
+          {
+            name: "EAS_GITCOIN_STAMP_SCHEMA",
+            valueFrom: `${IAM_SERVER_SSM_ARN}:EAS_GITCOIN_STAMP_SCHEMA::`,
+          },
+          {
+            name: "EAS_GITCOIN_SCORE_SCHEMA",
+            valueFrom: `${IAM_SERVER_SSM_ARN}:EAS_GITCOIN_SCORE_SCHEMA::`,
+          },
         ],
       },
     },
   },
 });
 
-const ecsTarget = new aws.appautoscaling.Target("autoscaling_target", {
+const ecsIamServiceAutoscalingTarget = new aws.appautoscaling.Target("autoscaling_target", {
   maxCapacity: 10,
   minCapacity: 1,
   resourceId: pulumi.interpolate`service/${cluster.cluster.name}/${service.service.name}`,
   scalableDimension: "ecs:service:DesiredCount",
   serviceNamespace: "ecs",
+});
+
+const ecsScorerServiceAutoscaling = new aws.appautoscaling.Policy("scorer-autoscaling-policy", {
+  policyType: "TargetTrackingScaling",
+  resourceId: ecsIamServiceAutoscalingTarget.resourceId,
+  scalableDimension: ecsIamServiceAutoscalingTarget.scalableDimension,
+  serviceNamespace: ecsIamServiceAutoscalingTarget.serviceNamespace,
+  targetTrackingScalingPolicyConfiguration: {
+    predefinedMetricSpecification: {
+      predefinedMetricType: "ECSServiceAverageCPUUtilization",
+    },
+    targetValue: 30,
+    scaleInCooldown: 300,
+    scaleOutCooldown: 300,
+  },
 });

@@ -1,6 +1,6 @@
 /* eslint-disable */
 // ---- Test subject
-import { alchemyGetNFTsUrl, NFTProvider } from "../nft";
+import { getNFTEndpoint, NFTProvider } from "../nft";
 
 import { RequestPayload } from "@gitcoin/passport-types";
 
@@ -45,7 +45,7 @@ describe("Attempt verification", function () {
 
       // Check the request to get the NFTs
       expect(axios.get).toHaveBeenCalledTimes(1);
-      expect(mockedAxios.get).toBeCalledWith(alchemyGetNFTsUrl, {
+      expect(mockedAxios.get).toBeCalledWith(getNFTEndpoint(), {
         params: {
           withMetadata: "false",
           owner: MOCK_ADDRESS_LOWER,

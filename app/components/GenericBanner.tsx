@@ -3,22 +3,22 @@ import { PlatformBanner } from "@gitcoin/passport-platforms/dist/commonjs/utils/
 export function GenericBanner({ banner }: { banner: PlatformBanner }) {
   return (
     <div className="p-4">
-      <div className="mt-10 rounded-lg border border-purple-infoElementBorder bg-purple-infoElementBG px-4 py-6">
-        <div className="font-libre-franklin">
-          <h2 className="text-md mb-0 text-left font-bold text-gray-900">{banner.heading}</h2>
-          <h2 className="text-md mb-2 text-left text-gray-900">{banner.content}</h2>
-          <hr />
-          {banner.cta && (
+      <div className="border-accent2 mt-10 rounded-lg border px-4 py-6 text-color-4">
+        <h2 className="text-md mb-0 text-left font-bold">{banner.heading}</h2>
+        <h2 className="text-md mb-2 text-left">{banner.content}</h2>
+        {banner.cta && (
+          <>
+            <hr className="border-background" />
             <a
               href={banner.cta.url}
-              className="mx-auto mt-2 flex justify-center text-purple-gitcoinpurple"
+              className="mx-auto mt-2 flex justify-center font-semibold text-accent-3"
               target="_blank"
               rel="noopener noreferrer"
             >
               {banner.cta.label}
             </a>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   );

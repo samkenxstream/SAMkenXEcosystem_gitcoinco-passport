@@ -12,7 +12,7 @@ import { router as procedureRouter } from "@gitcoin/passport-platforms/dist/comm
 import cors from "cors";
 
 // ---- Web3 packages
-import { utils } from "ethers";
+import { utils, ethers } from "ethers";
 
 // ---- Types
 import { Response } from "express";
@@ -23,9 +23,16 @@ import {
   VerifyRequestBody,
   CredentialResponseBody,
   ProviderContext,
+  CheckRequestBody,
+  CheckResponseBody,
+  EasPayload,
+  PassportAttestation,
+  EasRequestBody,
 } from "@gitcoin/passport-types";
 
 import { getChallenge } from "./utils/challenge";
+import { getEASFeeAmount } from "./utils/easFees";
+import { formatMultiAttestationRequest } from "./utils/easSchema";
 
 // ---- Generate & Verify methods
 import * as DIDKit from "@spruceid/didkit-wasm-node";
@@ -38,8 +45,53 @@ import {
 // All provider exports from platforms
 import { providers } from "@gitcoin/passport-platforms";
 
+// ---- Config - check for all required env variables
+// We want to prevent the app from starting with default values or if it is misconfigured
+const configErrors = [];
+
+if (!process.env.IAM_JWK) {
+  configErrors.push("IAM_JWK is required");
+}
+
+if (!process.env.ATTESTATION_SIGNER_PRIVATE_KEY) {
+  configErrors.push("ATTESTATION_SIGNER_PRIVATE_KEY is required");
+}
+
+if (!process.env.GITCOIN_VERIFIER_CHAIN_ID) {
+  configErrors.push("GITCOIN_VERIFIER_CHAIN_ID is required");
+}
+
+if (!process.env.GITCOIN_VERIFIER_CONTRACT_ADDRESS) {
+  configErrors.push("GITCOIN_VERIFIER_CONTRACT_ADDRESS is required");
+}
+
+if (!process.env.ALLO_SCORER_ID) {
+  configErrors.push("ALLO_SCORER_ID is required");
+}
+
+if (!process.env.SCORER_ENDPOINT) {
+  configErrors.push("SCORER_ENDPOINT is required");
+}
+
+if (!process.env.SCORER_API_KEY) {
+  configErrors.push("SCORER_API_KEY is required");
+}
+
+if (!process.env.EAS_GITCOIN_STAMP_SCHEMA) {
+  configErrors.push("EAS_GITCOIN_STAMP_SCHEMA is required");
+}
+
+if (!process.env.EAS_GITCOIN_SCORE_SCHEMA) {
+  configErrors.push("EAS_GITCOIN_SCORE_SCHEMA is required");
+}
+
+if (configErrors.length > 0) {
+  configErrors.forEach((error) => console.error(error)); // eslint-disable-line no-console
+  throw new Error("Missing required configuration");
+}
+
 // get DID from key
-const key = process.env.IAM_JWK || DIDKit.generateEd25519Key();
+const key = process.env.IAM_JWK;
 const issuer = DIDKit.keyToDID("key", key);
 
 // export the current config
@@ -51,10 +103,39 @@ export const config: {
   issuer,
 };
 
+const attestationSignerWallet = new ethers.Wallet(process.env.ATTESTATION_SIGNER_PRIVATE_KEY);
+
+const ATTESTER_DOMAIN = {
+  name: "GitcoinVerifier",
+  version: "1",
+  chainId: process.env.GITCOIN_VERIFIER_CHAIN_ID,
+  verifyingContract: process.env.GITCOIN_VERIFIER_CONTRACT_ADDRESS,
+};
+
+const ATTESTER_TYPES = {
+  AttestationRequestData: [
+    { name: "recipient", type: "address" },
+    { name: "expirationTime", type: "uint64" },
+    { name: "revocable", type: "bool" },
+    { name: "refUID", type: "bytes32" },
+    { name: "data", type: "bytes" },
+    { name: "value", type: "uint256" },
+  ],
+  MultiAttestationRequest: [
+    { name: "schema", type: "bytes32" },
+    { name: "data", type: "AttestationRequestData[]" },
+  ],
+  PassportAttestationRequest: [
+    { name: "multiAttestationRequest", type: "MultiAttestationRequest[]" },
+    { name: "nonce", type: "uint256" },
+    { name: "fee", type: "uint256" },
+  ],
+};
+
 // create the app and run on port
 export const app = express();
 
-// parse JSON post bodys
+// parse JSON post bodies
 app.use(express.json());
 
 // set cors to accept calls from anywhere
@@ -195,6 +276,49 @@ app.post("/api/v0.0.0/challenge", (req: Request, res: Response): void => {
   }
 });
 
+app.post("/api/v0.0.0/check", (req: Request, res: Response): void => {
+  const { payload } = req.body as CheckRequestBody;
+
+  if (!payload || !(payload.type || payload.types)) {
+    return void errorRes(res, "Incorrect payload", 400);
+  }
+
+  // See note below about context
+  const context: ProviderContext = {};
+  const responses: CheckResponseBody[] = [];
+  const types = (payload.types?.length ? payload.types : [payload.type]).filter((type) => type);
+
+  // This currently works for stamps which do not require the context
+  // Most oauth stamps will likely not work correctly unless only checking a single type
+  // TODO: In the platforms file, sort providers by platform. Here, process the
+  // platforms in parallel, but the providers in series. This will allow us to pass
+  // the context from one provider to the next. Do the same in the verify endpoint.
+  Promise.all(
+    types.map(async (type) => {
+      let valid = false;
+      let code, error;
+
+      try {
+        // verify the payload against the selected Identity Provider
+        const verifyResult = await providers.verify(type, payload, context);
+        valid = verifyResult.valid;
+        if (!valid) {
+          code = 403;
+          error =
+            (verifyResult.error && verifyResult.error.join(", ").substring(0, 1000)) || "Unable to verify provider";
+        }
+      } catch {
+        error = "Unable to verify provider";
+        code = 400;
+      } finally {
+        responses.push({ valid, type, code, error });
+      }
+    })
+  )
+    .then(() => res.json(responses))
+    .catch(() => errorRes(res, "Unable to check payload", 500));
+});
+
 // expose verify entry point
 app.post("/api/v0.0.0/verify", (req: Request, res: Response): void => {
   const requestBody: VerifyRequestBody = req.body as VerifyRequestBody;
@@ -239,7 +363,7 @@ app.post("/api/v0.0.0/verify", (req: Request, res: Response): void => {
 
         // type is required because we need it to select the correct Identity Provider
         if (isSigner && isType && payload && payload.type) {
-          // if multiple types are being requested - produce and return multiple vc's
+          // if multiple types are being requested - produce and return multiple vcs
           if (payload.types && payload.types.length) {
             // if payload.types then we want to iterate and return a VC for each type
             const responses: CredentialResponseBody[] = [];
@@ -274,6 +398,68 @@ app.post("/api/v0.0.0/verify", (req: Request, res: Response): void => {
     .catch(() => {
       return void errorRes(res, "Unable to verify payload", 500);
     });
+});
+
+// Expose entry point for getting eas payload for moving stamps on-chain
+// This function will receive an array of stamps, validate them and return an array of eas payloads
+app.post("/api/v0.0.0/eas", (req: Request, res: Response): void => {
+  try {
+    const { credentials, nonce } = req.body as EasRequestBody;
+    if (!credentials.length) return void errorRes(res, "No stamps provided", 400);
+
+    const recipient = credentials[0].credentialSubject.id.split(":")[4];
+
+    if (!(recipient && recipient.length === 42 && recipient.startsWith("0x")))
+      return void errorRes(res, "Invalid recipient", 400);
+
+    if (!credentials.every((credential) => credential.credentialSubject.id.split(":")[4] === recipient))
+      return void errorRes(res, "Every credential's id must be equivalent", 400);
+
+    Promise.all(
+      credentials.map(async (credential) => {
+        return {
+          credential,
+          verified: issuer === credential.issuer && (await verifyCredential(DIDKit, credential)),
+        };
+      })
+    )
+      .then(async (credentialVerifications) => {
+        const invalidCredentials = credentialVerifications
+          .filter(({ verified }) => !verified)
+          .map(({ credential }) => credential);
+
+        const multiAttestationRequest = await formatMultiAttestationRequest(credentialVerifications, recipient);
+
+        const fee = await getEASFeeAmount(2);
+        const passportAttestation: PassportAttestation = {
+          multiAttestationRequest,
+          nonce: Number(nonce),
+          fee: fee.toString(),
+        };
+
+        attestationSignerWallet
+          ._signTypedData(ATTESTER_DOMAIN, ATTESTER_TYPES, passportAttestation)
+          .then((signature) => {
+            const { v, r, s } = utils.splitSignature(signature);
+
+            const payload: EasPayload = {
+              passport: passportAttestation,
+              signature: { v, r, s },
+              invalidCredentials,
+            };
+
+            return void res.json(payload);
+          })
+          .catch(() => {
+            return void errorRes(res, "Error signing passport", 500);
+          });
+      })
+      .catch(() => {
+        return void errorRes(res, "Error formatting onchain passport", 500);
+      });
+  } catch (error) {
+    return void errorRes(res, String(error), 500);
+  }
 });
 
 // procedure endpoints

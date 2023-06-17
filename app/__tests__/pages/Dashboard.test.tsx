@@ -21,6 +21,8 @@ jest.mock("../../components/RefreshStampModal", () => ({
   RefreshStampModal: () => <div>Refresh Modal</div>,
 }));
 
+jest.mock("../../components/SyncToChainButton", () => () => <div>Sync to Chain</div>);
+
 jest.mock("@self.id/framework", () => {
   return {
     useViewerConnection: jest.fn(),
@@ -275,7 +277,7 @@ describe("when a user clicks on the Passport logo", () => {
       mockUserContext,
       {
         ...mockCeramicContext,
-        passportHasCacaoError: () => true,
+        passportHasCacaoError: true,
       },
       <Router>
         <Dashboard />
@@ -293,7 +295,7 @@ describe("when a user clicks on the Passport logo", () => {
       mockUserContext,
       {
         ...mockCeramicContext,
-        passportHasCacaoError: () => true,
+        passportHasCacaoError: true,
       },
       <Router>
         <Dashboard />

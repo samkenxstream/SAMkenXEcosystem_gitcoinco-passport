@@ -117,11 +117,11 @@ const code = "ABC123_ACCESSCODE";
 const clientId = process.env.GITHUB_CLIENT_ID;
 const clientSecret = process.env.GITHUB_CLIENT_SECRET;
 
-beforeEach(() => {
-  jest.clearAllMocks();
-});
-
 describe("Attempt verification", function () {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it("handles valid verification attempt", async () => {
     mockedAxios.post.mockImplementation(async () => {
       return validCodeResponse;
@@ -143,7 +143,7 @@ describe("Attempt verification", function () {
           code,
         },
       } as unknown as RequestPayload,
-      {},
+      {}
     );
 
     expect(mockedAxios.post).toBeCalledTimes(1);
@@ -203,7 +203,7 @@ describe("Attempt verification", function () {
           code,
         },
       } as unknown as RequestPayload,
-      {},
+      {}
     );
 
     expect(mockedAxios.post).toBeCalledTimes(1);
@@ -257,7 +257,7 @@ describe("Attempt verification", function () {
           code,
         },
       } as unknown as RequestPayload,
-      {},
+      {}
     );
 
     expect(mockedAxios.post).toBeCalledTimes(1);
@@ -295,7 +295,7 @@ describe("Attempt verification", function () {
           code,
         },
       } as unknown as RequestPayload,
-      {},
+      {}
     );
 
     expect(mockedAxios.post).toBeCalledTimes(1);
@@ -309,7 +309,7 @@ describe("Attempt verification", function () {
       }
     );
 
-    expect(mockedAxios.get).toBeCalledTimes(2);
+    expect(mockedAxios.get).toBeCalledTimes(1);
 
     // Check the request to get the user
     expect(mockedAxios.get).toBeCalledWith("https://api.github.com/user", {
@@ -339,7 +339,7 @@ describe("Attempt verification", function () {
           code,
         },
       } as unknown as RequestPayload,
-      {},
+      {}
     );
 
     expect(mockedAxios.post).toHaveBeenCalledTimes(1);
@@ -391,7 +391,7 @@ describe("Attempt verification", function () {
           code,
         },
       } as unknown as RequestPayload,
-      {},
+      {}
     );
 
     expect(mockedAxios.post).toBeCalledTimes(1);
@@ -437,7 +437,7 @@ describe("Attempt verification", function () {
           code,
         },
       } as unknown as RequestPayload,
-      {},
+      {}
     );
 
     expect(mockedAxios.post).toHaveBeenCalledTimes(1);
@@ -477,7 +477,7 @@ describe("Attempt verification", function () {
           code,
         },
       } as unknown as RequestPayload,
-      {},
+      {}
     );
 
     expect(mockedAxios.post).toHaveBeenCalledTimes(1);

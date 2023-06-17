@@ -1,11 +1,7 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { ExpiredStampModal, getProviderIdsFromPlatformId } from "../../components/ExpiredStampModal";
-import {
-  makeTestCeramicContext,
-  makeTestUserContext,
-  renderWithContext,
-} from "../../__test-fixtures__/contextTestHelpers";
-import { CeramicContextState, IsLoadingPassportState } from "../../context/ceramicContext";
+import { makeTestCeramicContext, renderWithContext } from "../../__test-fixtures__/contextTestHelpers";
+import { CeramicContextState } from "../../context/ceramicContext";
 import { UserContextState } from "../../context/userContext";
 
 jest.mock("../../utils/onboard.ts");
@@ -61,7 +57,7 @@ describe("ExpiredStampModal", () => {
       "FiftyOrMoreGithubFollowers",
     ]);
   });
-  it("should delete all stamps within each expired platform", () => {
+  it("should delete all stamps within each expired platform", async () => {
     const handleDeleteStamps = jest.fn();
     renderWithContext(
       {} as UserContextState,
@@ -69,19 +65,25 @@ describe("ExpiredStampModal", () => {
       <ExpiredStampModal isOpen={true} onClose={() => {}} />
     );
 
-    screen.getByTestId("delete-duplicate").click();
+    const deleteButton = screen.getByTestId("delete-duplicate");
+
+    expect(deleteButton.getAttribute("disabled")).toBeNull();
+
+    deleteButton.click();
+    expect(deleteButton.getAttribute("disabled")).not.toBeNull();
+
     expect(handleDeleteStamps).toHaveBeenCalledWith([
-      "Ens",
-      "Facebook",
-      "FacebookFriends",
-      "FacebookProfilePicture",
       "Github",
       "FiveOrMoreGithubRepos",
       "ForkedGithubRepoProvider",
       "StarredGithubRepoProvider",
       "TenOrMoreGithubFollowers",
       "FiftyOrMoreGithubFollowers",
+      "Facebook",
+      "FacebookProfilePicture",
       "Linkedin",
+      "Ens",
     ]);
+    await waitFor(() => expect(deleteButton.getAttribute("disabled")).toBeNull());
   });
 });

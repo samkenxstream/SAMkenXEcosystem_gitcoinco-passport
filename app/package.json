@@ -3,10 +3,10 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "start": "next dev",
-    "export": "next build && next export",
-    "build": "next build",
-    "prod-start": "next start",
+    "start": "NEXT_PUBLIC_GIT_COMMIT_HASH=$(git rev-parse --short HEAD) next dev -p 3000",
+    "export": "NEXT_PUBLIC_GIT_COMMIT_HASH=$(git rev-parse --short HEAD) next build && ts-node ./scripts/postBuild.ts && next export",
+    "build": "NEXT_PUBLIC_GIT_COMMIT_HASH=$(git rev-parse --short HEAD) next build && ts-node ./scripts/postBuild.ts",
+    "prod-start": "NEXT_PUBLIC_GIT_COMMIT_HASH=$(git rev-parse --short HEAD) next start",
     "clean": "rimraf node_modules && rimraf .next",
     "lint": "next lint && prettier --check .",
     "lint:fix": "next lint && prettier --write .",
@@ -24,15 +24,20 @@
     "@gitcoin/passport-identity": "^1.0.0",
     "@gitcoin/passport-platforms": "^1.0.0",
     "@gitcoin/passport-types": "^1.0.0",
+    "@headlessui/react": "^1.7.13",
+    "@headlessui/tailwindcss": "^0.1.3",
+    "@heroicons/react": "^2.0.17",
+    "@popperjs/core": "^2.11.7",
     "@self.id/framework": "0.3.3",
-    "@web3-onboard/core": "^2.3.2",
-    "@web3-onboard/injected-wallets": "^2.0.12",
-    "@web3-onboard/ledger": "^2.1.4",
-    "@web3-onboard/react": "^2.2.2",
-    "@web3-onboard/walletconnect": "^2.0.5",
+    "@web3-onboard/core": "^2.19.2",
+    "@web3-onboard/injected-wallets": "^2.9.0",
+    "@web3-onboard/ledger": "^2.4.6",
+    "@web3-onboard/react": "^2.8.4",
+    "@web3-onboard/walletconnect": "^2.3.8",
     "@web3-onboard/walletlink": "^2.0.4",
     "broadcast-channel": "^4.11.0",
     "did-session": "^1.0.0",
+    "ethers": "^6.3.0",
     "framer-motion": "^6.3.0",
     "next": "latest",
     "node-fetch": "^3.2.4",
@@ -40,8 +45,10 @@
     "react-dom": "^17.0.2",
     "react-google-login": "^5.2.2",
     "react-gtm-module": "^2.0.11",
+    "react-popper": "^2.3.0",
     "react-router-dom": "^6.3.0",
-    "ts-debounce": "^4.0.0"
+    "ts-debounce": "^4.0.0",
+    "ts-node": "^10.8.0"
   },
   "devDependencies": {
     "@ceramicnetwork/common": "^2.2.1",
@@ -68,7 +75,7 @@
     "eslint-plugin-testing-library": "^5.3.1",
     "identity-obj-proxy": "^3.0.0",
     "jest": "^27.5.1",
-    "jest-localstorage-mock": "^2.4.21",
+    "jest-localstorage-mock": "^2.4.26",
     "jest-mock-extended": "^2.0.5",
     "postcss": "^8.4.5",
     "prettier": "^2.6.2",
@@ -76,12 +83,15 @@
     "react-qr-code": "^2.0.7",
     "tailwindcss": "^3.0.7",
     "ts-jest": "^27.1.4",
-    "ts-node": "^10.8.0",
     "typescript": "4.5.4"
   },
   "resolutions": {
     "csstype": "3.0.10",
     "**/@types/react": "17.0.2",
     "leveldown": "6.1.1"
+  },
+  "optionalDependencies": {
+    "bufferutil": "^4.0.7",
+    "utf-8-validate": "^6.0.3"
   }
 }

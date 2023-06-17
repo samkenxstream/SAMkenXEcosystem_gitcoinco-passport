@@ -2,12 +2,12 @@ import React from "react";
 import { fireEvent, render, screen, waitFor, waitForElementToBeRemoved } from "@testing-library/react";
 import { GenericPlatform } from "../../components/GenericPlatform";
 
-import { Ens } from "@gitcoin/passport-platforms";
+import { platforms } from "@gitcoin/passport-platforms";
+const { Ens } = platforms;
 
 import { UserContextState } from "../../context/userContext";
 import { CeramicContextState } from "../../context/ceramicContext";
 import { mockAddress } from "../../__test-fixtures__/onboardHookValues";
-import { ensStampFixture } from "../../__test-fixtures__/databaseStorageFixtures";
 import { UN_SUCCESSFUL_ENS_RESULT, SUCCESFUL_ENS_RESULTS } from "../../__test-fixtures__/verifiableCredentialResults";
 import { fetchVerifiableCredential } from "@gitcoin/passport-identity/dist/commonjs/src/credentials";
 import {
@@ -18,6 +18,7 @@ import {
 import { JsonRpcSigner } from "@ethersproject/providers";
 import { mock } from "jest-mock-extended";
 import { Drawer, DrawerOverlay } from "@chakra-ui/react";
+import { closeAllToasts } from "../../__test-fixtures__/toastTestHelpers";
 
 jest.mock("@didtools/cacao", () => ({
   Cacao: {
@@ -33,6 +34,7 @@ const handleFetchCredential = jest.fn();
 
 jest.mock("../../utils/helpers.tsx", () => ({
   generateUID: jest.fn(),
+  getProviderSpec: jest.fn(),
   difference: (setA: any, setB: any) => ({
     size: 1,
   }),
@@ -61,7 +63,8 @@ const mockCeramicContext: CeramicContextState = makeTestCeramicContext({
 // TODO
 
 describe("when user has not verified with EnsProvider", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await closeAllToasts();
     (fetchVerifiableCredential as jest.Mock).mockResolvedValue({
       credentials: [SUCCESFUL_ENS_RESULTS],
     });
@@ -70,7 +73,7 @@ describe("when user has not verified with EnsProvider", () => {
     const drawer = () => (
       <Drawer isOpen={true} placement="right" size="sm" onClose={() => {}}>
         <DrawerOverlay />
-        <GenericPlatform platform={new Ens.EnsPlatform()} platFormGroupSpec={Ens.EnsProviderConfig} />
+        <GenericPlatform platform={new Ens.EnsPlatform()} platFormGroupSpec={Ens.ProviderConfig} />
       </Drawer>
     );
 
@@ -82,7 +85,7 @@ describe("when user has not verified with EnsProvider", () => {
     const drawer = () => (
       <Drawer isOpen={true} placement="right" size="sm" onClose={() => {}}>
         <DrawerOverlay />
-        <GenericPlatform platform={new Ens.EnsPlatform()} platFormGroupSpec={Ens.EnsProviderConfig} />
+        <GenericPlatform platform={new Ens.EnsPlatform()} platFormGroupSpec={Ens.ProviderConfig} />
       </Drawer>
     );
     renderWithContext(mockUserContext, mockCeramicContext, drawer());
@@ -100,7 +103,7 @@ describe("when user has not verified with EnsProvider", () => {
     const drawer = () => (
       <Drawer isOpen={true} placement="right" size="sm" onClose={() => {}}>
         <DrawerOverlay />
-        <GenericPlatform platform={new Ens.EnsPlatform()} platFormGroupSpec={Ens.EnsProviderConfig} />
+        <GenericPlatform platform={new Ens.EnsPlatform()} platFormGroupSpec={Ens.ProviderConfig} />
       </Drawer>
     );
     renderWithContext(mockUserContext, mockCeramicContext, drawer());
@@ -125,7 +128,7 @@ describe("Mulitple EVM plaftorms", () => {
     const drawer = () => (
       <Drawer isOpen={true} placement="right" size="sm" onClose={() => {}}>
         <DrawerOverlay />
-        <GenericPlatform platform={new Ens.EnsPlatform()} platFormGroupSpec={Ens.EnsProviderConfig} />
+        <GenericPlatform platform={new Ens.EnsPlatform()} platFormGroupSpec={Ens.ProviderConfig} />
       </Drawer>
     );
     renderWithContext(mockUserContext, mockCeramicContext, drawer());
@@ -146,12 +149,12 @@ it("should indicate that there was an error issuing the credential", async () =>
   const drawer = () => (
     <Drawer isOpen={true} placement="right" size="sm" onClose={() => {}}>
       <DrawerOverlay />
-      <GenericPlatform platform={new Ens.EnsPlatform()} platFormGroupSpec={Ens.EnsProviderConfig} />
+      <GenericPlatform platform={new Ens.EnsPlatform()} platFormGroupSpec={Ens.ProviderConfig} />
     </Drawer>
   );
   renderWithContext(
     mockUserContext,
-    { ...mockCeramicContext, handleAddStamps: jest.fn().mockRejectedValue(500) },
+    { ...mockCeramicContext, handlePatchStamps: jest.fn().mockRejectedValue(500) },
     drawer()
   );
 
@@ -176,7 +179,7 @@ it("should indicate that there was an error issuing the credential", async () =>
 //     const drawer = () => (
 //       <Drawer isOpen={true} placement="right" size="sm" onClose={() => {}}>
 //         <DrawerOverlay />
-//         <GenericPlatform platform={new Ens.EnsPlatform()} platFormGroupSpec={Ens.EnsProviderConfig} />
+//         <GenericPlatform platform={new Ens.EnsPlatform()} platFormGroupSpec={Ens.ProviderConfig} />
 //       </Drawer>
 //     );
 
@@ -220,7 +223,7 @@ it("should indicate that there was an error issuing the credential", async () =>
 //     const drawer = () => (
 //       <Drawer isOpen={true} placement="right" size="sm" onClose={() => {}}>
 //         <DrawerOverlay />
-//         <GenericPlatform platform={new Ens.EnsPlatform()} platFormGroupSpec={Ens.EnsProviderConfig} />
+//         <GenericPlatform platform={new Ens.EnsPlatform()} platFormGroupSpec={Ens.ProviderConfig} />
 //       </Drawer>
 //     );
 //     renderWithContext(mockUserContext, mockCeramicContext, drawer());

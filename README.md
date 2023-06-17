@@ -14,7 +14,7 @@ Check out our documentation at https://docs.passport.gitcoin.co
 
 We welcome everyone to contribute to the Passport project.
 
-You can join our [Discord](https://discord.gg/w6K2wwHr) and specifically the [passport-builders](https://discord.com/channels/562828676480237578/986222591096279040) channel (just be sure to select the builder role when you join the discord) to get help and discuss the project with the rest of the community.
+You can join our [Discord](https://discord.gg/gitcoin) and specifically the [passport-builders](https://discord.com/channels/562828676480237578/986222591096279040) channel (just be sure to select the builder role when you join the discord) to get help and discuss the project with the rest of the community.
 
 You can also familiarize yourself with our near term project roadmap in the passport [project backlog](https://github.com/orgs/gitcoinco/projects/6/views/3)
 
@@ -62,6 +62,14 @@ cp ./schemas/.env-example.env ./schemas/.env
 # remember to create .env files first
 yarn start
 ```
+
+4. Run the [Passport Scorer API](https://github.com/gitcoinco/passport-scorer/tree/main/api) locally. Set up instructions are [here](https://github.com/gitcoinco/passport-scorer/blob/main/SETUP.md) 
+
+## Passport Data
+
+A passport has two sources of data. The primary source is a postgres database that is hosted by gitcoin. To run the passport application locally you will need spin up the [Scorer API](https://github.com/gitcoinco/passport-scorer/tree/main/api). All relevant instructions to run the scorer api can be found [here](https://github.com/gitcoinco/passport-scorer/blob/main/SETUP.md). The sample environment variables in the .env-example.env files are configured to make requests to the scorer api running locally. Once the scorer api is running locally, you should have a reliable data source for development.
+
+The second source of data is the ceramic network. No steps are needed to run the ceramic network locally. The sample environment variables in the .env-example.env files are configured to make requests to a test version of the ceramic network.
 
 ## Background Knowledge
 

@@ -1,6 +1,8 @@
-import { PlatformSpec, PlatformGroupSpec } from "../types";
+import { PlatformSpec, PlatformGroupSpec, Provider } from "../types";
+import { ZkSyncProvider } from "./Providers/zkSync";
+import { ZkSyncEraProvider } from "./Providers/zkSyncEra";
 
-export const ZkSyncPlatformDetails: PlatformSpec = {
+export const PlatformDetails: PlatformSpec = {
   icon: "./assets/zksyncStampIcon.svg",
   platform: "ZkSync",
   name: "ZkSync",
@@ -9,9 +11,15 @@ export const ZkSyncPlatformDetails: PlatformSpec = {
   isEVM: true,
 };
 
-export const ZkSyncProviderConfig: PlatformGroupSpec[] = [
+export const ProviderConfig: PlatformGroupSpec[] = [
   {
-    platformGroup: "Account name",
-    providers: [{ title: "Encrypted", name: "ZkSync" }],
+    platformGroup: "zkSync 1.0",
+    providers: [{ title: "Transacted on zkSync 1.0", name: "ZkSync" }],
+  },
+  {
+    platformGroup: "zkSync Era",
+    providers: [{ title: "Transacted on zkSync Era", name: "ZkSyncEra" }],
   },
 ];
+
+export const providers: Provider[] = [new ZkSyncProvider(), new ZkSyncEraProvider()];

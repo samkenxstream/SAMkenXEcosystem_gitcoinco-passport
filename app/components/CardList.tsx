@@ -1,8 +1,9 @@
 // --- React Methods
 import React, { useContext, useEffect, useRef, useState } from "react";
 
-import { PLATFORMS, PlatformSpec } from "../config/platforms";
+import { PLATFORMS } from "../config/platforms";
 import { PlatformGroupSpec, STAMP_PROVIDERS, UpdatedPlatforms } from "../config/providers";
+import { PlatformSpec } from "@gitcoin/passport-platforms";
 
 // --- Components
 import { LoadingCard } from "./LoadingCard";
@@ -13,13 +14,16 @@ import { SideBarContent } from "./SideBarContent";
 
 // --- Chakra UI Elements
 import { Drawer, DrawerOverlay, useDisclosure } from "@chakra-ui/react";
-import { PLATFORM_ID, PROVIDER_ID } from "@gitcoin/passport-platforms/dist/commonjs/types";
+import { PLATFORM_ID, PROVIDER_ID } from "@gitcoin/passport-types";
 import { CeramicContext } from "../context/ceramicContext";
 import { PlatformCard } from "./PlatformCard";
+import PageWidthGrid from "../components/PageWidthGrid";
 
 export type CardListProps = {
   isLoading?: boolean;
 };
+
+const cardClassName = "col-span-2 md:col-span-3 lg:col-span-2 xl:col-span-3";
 
 type SelectedProviders = Record<PLATFORM_ID, PROVIDER_ID[]>;
 
@@ -79,7 +83,11 @@ export const CardList = ({ isLoading = false }: CardListProps): JSX.Element => {
       const platformProps = allPlatforms.get(currentPlatform.platform);
       if (platformProps) {
         return (
-          <GenericPlatform platform={platformProps.platform} platFormGroupSpec={platformProps.platFormGroupSpec} />
+          <GenericPlatform
+            platform={platformProps.platform}
+            platFormGroupSpec={platformProps.platFormGroupSpec}
+            onClose={onClose}
+          />
         );
       }
     }
@@ -104,11 +112,11 @@ export const CardList = ({ isLoading = false }: CardListProps): JSX.Element => {
   }, [currentPlatform]);
 
   return (
-    <div className="container mx-auto py-10">
-      <div className="flex flex-wrap md:-m-4 md:px-4">
+    <>
+      <PageWidthGrid>
         {PLATFORMS.map((platform, i) => {
           return isLoading ? (
-            <LoadingCard key={i} />
+            <LoadingCard key={i} className={cardClassName} />
           ) : (
             <PlatformCard
               i={i}
@@ -120,10 +128,11 @@ export const CardList = ({ isLoading = false }: CardListProps): JSX.Element => {
               updatedPlatforms={updatedPlatforms}
               getUpdatedPlatforms={getUpdatedPlatforms}
               setCurrentPlatform={setCurrentPlatform}
+              className={cardClassName}
             />
           );
         })}
-      </div>
+      </PageWidthGrid>
       {/* sidebar */}
       {currentProviders && (
         <Drawer isOpen={isOpen} placement="right" size="sm" onClose={onClose} finalFocusRef={btnRef.current}>
@@ -131,6 +140,6 @@ export const CardList = ({ isLoading = false }: CardListProps): JSX.Element => {
           {renderCurrentPlatformSelection()}
         </Drawer>
       )}
-    </div>
+    </>
   );
 };

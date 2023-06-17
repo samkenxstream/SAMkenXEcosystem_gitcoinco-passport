@@ -1,7 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps, @next/next/no-img-element */
 // --- Methods
 import React from "react";
-import { BroadcastChannel } from "broadcast-channel";
 import { HashRouter as Router, Routes, Route } from "react-router-dom";
 
 // -- Next Methods
@@ -9,12 +8,15 @@ import type { NextPage } from "next";
 
 // -- Pages
 import Home from "./Home";
+import Welcome from "./Welcome";
 import Dashboard from "./Dashboard";
 import Privacy from "./privacy";
+import Maintenance from "./Maintenance";
 
 // -- Datadog
 import { datadogRum } from "@datadog/browser-rum";
 import { datadogLogs } from "@datadog/browser-logs";
+import { isServerOnMaintenance } from "../utils/helpers";
 
 datadogRum.init({
   applicationId: process.env.NEXT_PUBLIC_DATADOG_APPLICATION_ID || "",
@@ -40,31 +42,8 @@ datadogLogs.init({
 });
 
 const App: NextPage = () => {
-  // pull any search params
-  const queryString = new URLSearchParams(window?.location?.search);
-  // Twitter oauth will attach code & state in oauth procedure
-  const queryError = queryString.get("error");
-  const queryCode = queryString.get("code");
-  const queryState = queryString.get("state");
-
-  // We expect for a queryState like" 'twitter-asdfgh', 'google-asdfghjk'
-  const providerPath = queryState?.split("-");
-  const provider = providerPath ? providerPath[0] : undefined;
-
-  // if Twitter oauth then submit message to other windows and close self
-  if ((queryError || queryCode) && queryState && provider) {
-    // shared message channel between windows (on the same domain)
-    const channel = new BroadcastChannel(`${provider}_oauth_channel`);
-
-    // only continue with the process if a code is returned
-    if (queryCode) {
-      channel.postMessage({ target: provider, data: { code: queryCode, state: queryState } });
-    }
-
-    // always close the redirected window
-    window.close();
-
-    return <div></div>;
+  if (isServerOnMaintenance()) {
+    return <Maintenance />;
   }
 
   return (
@@ -72,6 +51,7 @@ const App: NextPage = () => {
       <Router>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/welcome" element={<Welcome />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/privacy" element={<Privacy />} />
         </Routes>

@@ -3,13 +3,14 @@ import { AppContext, Platform, PlatformOptions, ProviderPayload } from "../types
 
 export class GTCStakingPlatform implements Platform {
   platformId = "GtcStaking";
-  path = "";
+  path = "GtcStaking";
+  isEVM = true;
   clientId: string = null;
   redirectUri: string = null;
 
   banner = {
     heading:
-      "During a live Gitcoin Grants Round, you can connect your wallet to verify your staked GTC amount. If you haven't staked yet, you can follow this link to do so.",
+      "You can connect your wallet to verify your staked GTC amount. Using Identity staking your GTC will be locked for up to 90 days and then can be un-staked or re-staked at that time. If you haven't staked yet, you can follow this link to do so.",
     cta: {
       label: "Go to Identity Staking",
       url: "https://www.staking.passport.gitcoin.co/",

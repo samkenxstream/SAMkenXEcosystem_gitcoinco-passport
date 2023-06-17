@@ -1,5 +1,18 @@
 // ---- Testing libraries
 import request from "supertest";
+import * as DIDKit from "@spruceid/didkit-wasm-node";
+
+// --- Mocks - test configuration
+
+process.env.IAM_JWK = DIDKit.generateEd25519Key();
+process.env.ATTESTATION_SIGNER_PRIVATE_KEY = "0x04d16281ff3bf268b29cdd684183f72542757d24ae9fdfb863e7c755e599163a";
+process.env.GITCOIN_VERIFIER_CHAIN_ID = "11155111";
+process.env.GITCOIN_VERIFIER_CONTRACT_ADDRESS = "0xD8088f772006CAFD81082e8e2e467fA18564e879";
+process.env.ALLO_SCORER_ID = "1";
+process.env.SCORER_ENDPOINT = "http://127.0.0.1:8002";
+process.env.SCORER_API_KEY = "abcd";
+process.env.EAS_GITCOIN_STAMP_SCHEMA = "0x";
+process.env.EAS_GITCOIN_SCORE_SCHEMA = "0x";
 
 // ---- Test subject
 import { app, config } from "../src/index";
@@ -11,21 +24,50 @@ import {
   ProviderContext,
   RequestPayload,
   ValidResponseBody,
+  VerifiableCredential,
   VerifiedPayload,
 } from "@gitcoin/passport-types";
 
+import { MultiAttestationRequest, ZERO_BYTES32, NO_EXPIRATION } from "@ethereum-attestation-service/eas-sdk";
+
+import { utils } from "ethers";
+import * as easFeesMock from "../src/utils/easFees";
 import * as identityMock from "@gitcoin/passport-identity/dist/commonjs/src/credentials";
+import * as easSchemaMock from "../src/utils/easSchema";
 
 jest.mock("ethers", () => {
+  const originalModule = jest.requireActual("ethers");
+  const ethers = originalModule.ethers;
+  const utils = originalModule.utils;
+
   return {
     utils: {
+      ...utils,
       getAddress: jest.fn().mockImplementation(() => {
         return "0x0";
       }),
       verifyMessage: jest.fn().mockImplementation(() => {
         return "string";
       }),
+      splitSignature: jest.fn().mockImplementation(() => {
+        return { v: 0, r: "r", s: "s" };
+      }),
     },
+    ethers,
+  };
+});
+
+jest.mock("@ethereum-attestation-service/eas-sdk", () => {
+  return {
+    SchemaEncoder: jest.fn().mockImplementation(() => {
+      return {
+        encodeData: jest.fn().mockImplementation(() => {
+          return "0x1234";
+        }),
+      };
+    }),
+    ZERO_BYTES32: "0x0000000000000000000000000000000000000000000000000000000000000000",
+    NO_EXPIRATION: 0,
   };
 });
 
@@ -594,5 +636,347 @@ describe("POST /verify", function () {
       .set("Accept", "application/json")
       .expect(401)
       .expect("Content-Type", /json/);
+  });
+});
+
+describe("POST /check", function () {
+  it("handles valid check requests", async () => {
+    const payload = {
+      type: "Simple",
+      address: "0x0",
+      proofs: {
+        valid: "true",
+      },
+    };
+
+    const response = await request(app)
+      .post("/api/v0.0.0/check")
+      .send({ payload })
+      .set("Accept", "application/json")
+      .expect(200)
+      .expect("Content-Type", /json/);
+
+    expect(response.body[0].valid).toBe(true);
+    expect(response.body[0].type).toEqual("Simple");
+  });
+
+  it("handles valid check requests with multiple types", async () => {
+    const payload = {
+      types: ["Simple", "AnotherType"],
+      address: "0x0",
+      proofs: {
+        valid: "true",
+      },
+    };
+
+    const response = await request(app)
+      .post("/api/v0.0.0/check")
+      .send({ payload })
+      .set("Accept", "application/json")
+      .expect(200)
+      .expect("Content-Type", /json/);
+
+    expect(response.body.length).toBe(2);
+
+    const simple = response.body.find((item: any) => item.type === "Simple");
+    const anotherType = response.body.find((item: any) => item.type === "AnotherType");
+
+    expect(simple.valid).toBe(true);
+    expect(anotherType.valid).toBe(false);
+    expect(anotherType.error).toBeDefined();
+    expect(anotherType.code).toBeDefined();
+  });
+
+  it("handles missing payload in the check request body", async () => {
+    const response = await request(app)
+      .post("/api/v0.0.0/check")
+      .send({})
+      .set("Accept", "application/json")
+      .expect(400)
+      .expect("Content-Type", /json/);
+
+    expect(response.body.error).toEqual("Incorrect payload");
+  });
+
+  it("handles malformed payload in the check request body", async () => {
+    const payload = "bad :(";
+
+    const response = await request(app)
+      .post("/api/v0.0.0/check")
+      .send({ payload })
+      .set("Accept", "application/json")
+      .expect(400)
+      .expect("Content-Type", /json/);
+
+    expect(response.body.error).toEqual("Incorrect payload");
+  });
+
+  it("handles empty types array in the check request body", async () => {
+    const payload = {
+      types: [] as unknown as string[],
+      address: "0x0",
+    };
+
+    const response = await request(app)
+      .post("/api/v0.0.0/check")
+      .send({ payload })
+      .set("Accept", "application/json")
+      .expect(200)
+      .expect("Content-Type", /json/);
+
+    expect(response.body.length).toEqual(0);
+  });
+});
+
+const mockMultiAttestationRequest: MultiAttestationRequest[] = [
+  {
+    schema: "0x853a55f39e2d1bf1e6731ae7148976fbbb0c188a898a233dba61a233d8c0e4a4",
+    data: [
+      {
+        recipient: "0x0987654321098765432109876543210987654321",
+        data: easSchemaMock.encodeEasScore({
+          score: 23.45,
+          scorer_id: 123,
+        }),
+        expirationTime: NO_EXPIRATION,
+        revocable: false,
+        refUID: ZERO_BYTES32,
+        value: "25000000000000000",
+      },
+    ],
+  },
+  {
+    schema: "0x853a55f39e2d1bf1e6731ae7148976fbbb0c188a898a233dba61a233d8c0e4a4",
+    data: [
+      {
+        recipient: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        data: easSchemaMock.encodeEasScore({
+          score: 23.45,
+          scorer_id: 123,
+        }),
+        expirationTime: NO_EXPIRATION,
+        revocable: true,
+        refUID: ZERO_BYTES32,
+        value: "25000000000000000",
+      },
+    ],
+  },
+];
+
+describe("POST /eas", () => {
+  let getEASFeeAmountSpy: jest.SpyInstance;
+  let formatMultiAttestationRequestSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.spyOn(identityMock, "verifyCredential").mockResolvedValue(true);
+    getEASFeeAmountSpy = jest
+      .spyOn(easFeesMock, "getEASFeeAmount")
+      .mockReturnValue(Promise.resolve(utils.parseEther("0.025")));
+  });
+
+  afterEach(() => {
+    // restore the spy created with spyOn
+    jest.restoreAllMocks();
+  });
+
+  it("handles valid requests including some invalid credentials", async () => {
+    formatMultiAttestationRequestSpy = jest
+      .spyOn(easSchemaMock, "formatMultiAttestationRequest")
+      .mockReturnValue(Promise.resolve(mockMultiAttestationRequest));
+    const nonce = 0;
+    const failedCredential = {
+      "@context": "https://www.w3.org/2018/credentials/v1",
+      type: ["VerifiableCredential", "Stamp"],
+      issuer: "BAD_ISSUER",
+      issuanceDate: new Date().toISOString(),
+      credentialSubject: {
+        id: "did:pkh:eip155:1:0x5678000000000000000000000000000000000000",
+        provider: "failure",
+        hash: "v0.0.0:8JZcQJy6uwNGPDZnvfGbEs6mf5OZVD1mUOdhKNrOHls=",
+      },
+      expirationDate: "9999-12-31T23:59:59Z",
+    };
+
+    const credentials = [failedCredential];
+
+    const expectedPayload = {
+      passport: {
+        multiAttestationRequest: mockMultiAttestationRequest,
+        fee: "25000000000000000",
+        nonce,
+      },
+      signature: expect.any(Object),
+      invalidCredentials: [failedCredential],
+    };
+
+    const response = await request(app)
+      .post("/api/v0.0.0/eas")
+      .send({ credentials, nonce })
+      .set("Accept", "application/json")
+      .expect(200)
+      .expect("Content-Type", /json/);
+
+    expect(response.body).toEqual(expectedPayload);
+    expect(response.body.signature.r).toBe("r");
+  });
+
+  it("handles request with only invalid credentials", async () => {
+    formatMultiAttestationRequestSpy = jest
+      .spyOn(easSchemaMock, "formatMultiAttestationRequest")
+      .mockReturnValue(Promise.resolve([]));
+    const nonce = 0;
+    const failedCredential = {
+      "@context": "https://www.w3.org/2018/credentials/v1",
+      type: ["VerifiableCredential", "Stamp"],
+      issuer: "BAD_ISSUER",
+      issuanceDate: new Date().toISOString(),
+      credentialSubject: {
+        id: "did:pkh:eip155:1:0x5678000000000000000000000000000000000000",
+        provider: "failure",
+        hash: "v0.0.0:8JZcQJy6uwNGPDZnvfGbEs6mf5OZVD1mUOdhKNrOHls=",
+      },
+      expirationDate: "9999-12-31T23:59:59Z",
+    };
+
+    const credentials = [failedCredential];
+    const expectedPayload = {
+      passport: {
+        multiAttestationRequest: [] as MultiAttestationRequest[],
+        fee: "25000000000000000",
+        nonce,
+      },
+      signature: expect.any(Object),
+      invalidCredentials: [failedCredential],
+    };
+
+    const response = await request(app)
+      .post("/api/v0.0.0/eas")
+      .send({ credentials, nonce })
+      .set("Accept", "application/json")
+      .expect(200)
+      .expect("Content-Type", /json/);
+
+    expect(response.body).toEqual(expectedPayload);
+    expect(response.body.signature.r).toBe("r");
+  });
+
+  it("handles missing stamps in the request body", async () => {
+    const nonce = 0;
+    const credentials: VerifiableCredential[] = [];
+    const response = await request(app)
+      .post("/api/v0.0.0/eas")
+      .send({ credentials, nonce })
+      .set("Accept", "application/json")
+      .expect(400)
+      .expect("Content-Type", /json/);
+
+    expect(response.body.error).toEqual("No stamps provided");
+  });
+
+  it("handles invalid recipient in the request body", async () => {
+    const nonce = 0;
+    const credentials = [
+      {
+        "@context": "https://www.w3.org/2018/credentials/v1",
+        type: ["VerifiableCredential", "Stamp"],
+        issuer: config.issuer,
+        issuanceDate: new Date().toISOString(),
+        credentialSubject: {
+          id: "did:pkh:eip155:1:0x5678",
+          provider: "test",
+          hash: "v0.0.0:8JZcQJy6uwNGPDZnvfGbEs6mf5OZVD1mUOdhKNrOHls=",
+        },
+        expirationDate: "9999-12-31T23:59:59Z",
+      },
+    ];
+
+    const response = await request(app)
+      .post("/api/v0.0.0/eas")
+      .send({ credentials, nonce })
+      .set("Accept", "application/json")
+      .expect(400)
+      .expect("Content-Type", /json/);
+
+    expect(response.body.error).toEqual("Invalid recipient");
+  });
+
+  it("returns the fee information in the response as wei units", async () => {
+    formatMultiAttestationRequestSpy = jest
+      .spyOn(easSchemaMock, "formatMultiAttestationRequest")
+      .mockReturnValue(Promise.resolve(mockMultiAttestationRequest));
+    const nonce = 0;
+    const expectedFeeUsd = 2;
+
+    const credentials = [
+      {
+        "@context": "https://www.w3.org/2018/credentials/v1",
+        type: ["VerifiableCredential", "Stamp"],
+        issuer: config.issuer,
+        issuanceDate: new Date().toISOString(),
+        credentialSubject: {
+          id: "did:pkh:eip155:1:0x5678000000000000000000000000000000000000",
+          provider: "test",
+          hash: "v0.0.0:8JZcQJy6uwNGPDZnvfGbEs6mf5OZVD1mUOdhKNrOHls=",
+        },
+        expirationDate: "9999-12-31T23:59:59Z",
+      },
+    ];
+
+    const expectedPayload = {
+      passport: {
+        multiAttestationRequest: mockMultiAttestationRequest,
+        fee: "25000000000000000",
+        nonce,
+      },
+      signature: expect.any(Object),
+      invalidCredentials: [] as VerifiableCredential[],
+    };
+
+    const response = await request(app)
+      .post("/api/v0.0.0/eas")
+      .send({ credentials, nonce })
+      .set("Accept", "application/json")
+      .expect(200)
+      .expect("Content-Type", /json/);
+
+    expect(response.body).toMatchObject(expectedPayload);
+    expect(getEASFeeAmountSpy).toHaveBeenCalledTimes(1);
+    expect(getEASFeeAmountSpy).toHaveBeenCalledWith(expectedFeeUsd);
+  });
+  it("should throw a 400 error if every credentialSubject.id is not equivalent", async () => {
+    const nonce = 0;
+    const credentials = [
+      {
+        "@context": "https://www.w3.org/2018/credentials/v1",
+        type: ["VerifiableCredential", "Stamp"],
+        issuer: config.issuer,
+        issuanceDate: new Date().toISOString(),
+        credentialSubject: {
+          id: "did:pkh:eip155:1:0x5678000000000000000000000000000000000000",
+          provider: "test",
+          hash: "v0.0.0:8JZcQJy6uwNGPDZnvfGbEs6mf5OZVD1mUOdhKNrOHls=",
+        },
+        expirationDate: "9999-12-31T23:59:59Z",
+      },
+      {
+        "@context": "https://www.w3.org/2018/credentials/v1",
+        type: ["VerifiableCredential", "Stamp"],
+        issuer: config.issuer,
+        issuanceDate: new Date().toISOString(),
+        credentialSubject: {
+          id: "did:pkh:eip155:1:0x5678000000000000000000000000000000000001",
+          provider: "test",
+          hash: "v0.0.0:8JZcQJy6uwNGPDZnvfGbEs6mf5OZVD1mUOdhKNrOHla=",
+        },
+        expirationDate: "9999-12-31T23:59:59Z",
+      },
+    ];
+
+    const response = await request(app)
+      .post("/api/v0.0.0/eas")
+      .send({ credentials, nonce })
+      .set("Accept", "application/json");
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe("Every credential's id must be equivalent");
   });
 });

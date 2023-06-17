@@ -10,12 +10,15 @@ import { getAddress } from "../../utils/signer";
 
 // Alchemy Api key
 export const apiKey = process.env.ALCHEMY_API_KEY;
-export const alchemyGetNFTsUrl = `https://eth-mainnet.g.alchemy.com/nft/v2/${apiKey}/getNFTs`;
 
 type NFTsResponse = {
   ownedNfts: [];
   totalCount: number;
 };
+
+export function getNFTEndpoint(): string {
+  return `https://eth-mainnet.g.alchemy.com/nft/v2/${apiKey}/getNFTs`;
+}
 
 // Export a NFT Provider
 export class NFTProvider implements Provider {
@@ -41,7 +44,7 @@ export class NFTProvider implements Provider {
       totalCount: 0,
     };
 
-    const providerUrl = alchemyGetNFTsUrl || payload.rpcUrl;
+    const providerUrl = getNFTEndpoint();
 
     try {
       const requestResponse = await axios.get(providerUrl, {
